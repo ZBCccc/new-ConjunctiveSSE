@@ -1,18 +1,52 @@
 package main
 
 import (
+	"ConjunctiveSSE/ODXT"
+	"ConjunctiveSSE/util"
 	"fmt"
-	"math/big"
+	"log"
+	"sync"
 )
 
+func startServer(wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	var server ODXT.Server
+	server.Setup()
+}
+
+func startClient(wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	var client ODXT.Client
+	err := client.Setup()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer client.Conn.Close()
+
+	// 示例：发送更新请求
+	err = client.Update("example_id", "example_value", util.Add)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("Update request sent successfully")
+
+	// 示例：发送搜索请求
+	err = client.Search([]string{"example_value"})
+	if err != nil {
+		log.Println("Error sending search request:", err)
+		log.Fatal(err)
+	}
+	fmt.Println("Search request sent successfully")
+}
+
 func main() {
-	a := big.NewInt(4)
-	b := big.NewInt(11)
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-	g := big.NewInt(65537)
-	//p, _ := new(big.Int).SetString("69445180235231407255137142482031499329548634082242122837872648805446522657159", 10)
+	go startServer(&wg)
+	go startClient(&wg)
 
-	fmt.Println(a.ModInverse(a, b))
-	fmt.Println(a.ModInverse(g, b))
-
+	wg.Wait()
 }

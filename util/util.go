@@ -3,6 +3,7 @@ package util
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"fmt"
 	"math/big"
 )
 
@@ -11,7 +12,7 @@ const MAXBYTES = 64
 type Operation int
 
 const (
-	del Operation = iota // 0
+	Del Operation = iota // 0
 	Add                  // 1
 )
 
@@ -23,9 +24,40 @@ type DataPacket struct {
 }
 
 type SEOp struct {
-	J int
+	J    int
 	Sval []byte
-	Cnt int
+	Cnt  int
+}
+
+// RequestType 请求类型
+type RequestType int
+
+// 请求类型
+const (
+	Update RequestType = iota
+	Search
+)
+
+// Request 请求
+type Request struct {
+	Type    RequestType
+	Payload interface{}
+}
+
+type UpdatePayload struct {
+	Address []byte
+	Val     []byte
+	Alpha   *big.Int
+	Xtag    *big.Int
+}
+
+type SearchPayload struct {
+	StokenList [][]byte
+	XtokenList [][]*big.Int
+}
+
+type Response struct {
+	SEOpList []SEOp
 }
 
 func PrfF(key, message []byte) ([]byte, error) {
@@ -69,12 +101,28 @@ func PrfFp(key, message []byte, p, g *big.Int) (*big.Int, error) {
 	return result, nil
 }
 
-func bytesXOR(a, b []byte) []byte {
-	result := make([]byte, len(a))
-	for i := range a {
-		result[i] = a[i] ^ b[i]
+// BytesXORWithOp 将MAC值的前31个字节与id异或，并将MAC的最后一个字节与op异或
+func BytesXORWithOp(mac, id []byte, op int) ([]byte, error) {
+	if len(mac) != 32 {
+		return nil, fmt.Errorf("MAC length must be 32 bytes")
 	}
-	return result
+
+	// 确保id的长度为31字节
+	idPadded := make([]byte, 31)
+	copy(idPadded, id)
+
+	// 执行异或操作
+	for i := 0; i < 31; i++ {
+		mac[i] = mac[i] ^ idPadded[i]
+	}
+
+	// 将MAC的最后一个字节与op异或
+	if op != 0 && op != 1 {
+		return nil, fmt.Errorf("op must be 0 or 1")
+	}
+	mac[31] = mac[31] ^ byte(op)
+
+	return mac, nil
 }
 
 // MulInv 计算 a 在模 b 下的乘法逆元
