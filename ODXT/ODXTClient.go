@@ -128,9 +128,11 @@ func (client *Client) Update(id string, w string, op util.Operation) error {
 }
 
 func (client *Client) Search(q []string) error {
+	// 读取密钥
 	kt, kx, kz := client.Keys[0], client.Keys[1], client.Keys[3]
 	counter, w1, st := 1000000, q[0], client.UpdateCnt
 
+	// 选择查询频率最低的关键字
 	for _, w := range q {
 		num := st[w]
 		if num < counter {
@@ -139,6 +141,7 @@ func (client *Client) Search(q []string) error {
 		}
 	}
 
+	// 初始化stokenList和xtokenList
 	stokenList := make([][]byte, counter)
 	xtokenList := make([][]*big.Int, counter)
 	for i := range xtokenList {
@@ -165,6 +168,7 @@ func (client *Client) Search(q []string) error {
 			xtokenList[j][i] = new(big.Int).Exp(xtoken1, xtoken2, client.p)
 			i++
 		}
+
 		// 打乱切片中的元素
 		mrand.Shuffle(len(xtokenList[j]), func(i, j int) {
 			xtokenList[j][i], xtokenList[j][j] = xtokenList[j][j], xtokenList[j][i]
@@ -185,13 +189,13 @@ func (client *Client) Search(q []string) error {
 	// 发送数据
 	err = encoder.Encode(stokenList)
 	if err != nil {
-		fmt.Println("Error sending data:", err)
+		fmt.Println("Error sending stokenList:", err)
 		return err
 	}
 
 	err = encoder.Encode(xtokenList)
 	if err != nil {
-		fmt.Println("Error sending data:", err)
+		fmt.Println("Error sending xtokenList:", err)
 		return err
 	}
 
