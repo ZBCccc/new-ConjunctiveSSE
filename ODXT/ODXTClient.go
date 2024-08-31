@@ -67,8 +67,6 @@ func (client *Client) Update(id string, w string, op util.Operation) error {
 	}
 	if op == util.Add {
 		val[65] = val[65] ^ 0xFF // 255 == xor 1
-	} else {
-		val[65] = val[65] ^ 0x00 // 0 == xor 0
 	}
 
 	idBytes := []byte(id)

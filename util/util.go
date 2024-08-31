@@ -22,6 +22,12 @@ type DataPacket struct {
 	Xtag    *big.Int
 }
 
+type SEOp struct {
+	J int
+	Sval []byte
+	Cnt int
+}
+
 func PrfF(key, message []byte) ([]byte, error) {
 	// 生成一个HMAC对象
 	h := hmac.New(sha256.New, key)
