@@ -8,11 +8,18 @@ import (
 	"sync"
 )
 
+func init() {
+	util.RegisterTypes()
+}
+
 func startServer(wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	var server ODXT.Server
-	server.Setup()
+	err := server.Setup()
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func startClient(wg *sync.WaitGroup) {
@@ -30,10 +37,16 @@ func startClient(wg *sync.WaitGroup) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("Update request sent successfully")
+	// fmt.Println("Update request sent successfully")
+
+	err = client.Update("example_id", "w2", util.Add)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// fmt.Println("第二次更新成功")
 
 	// 示例：发送搜索请求
-	err = client.Search([]string{"example_value"})
+	err = client.Search([]string{"example_value", "w2"})
 	if err != nil {
 		log.Println("Error sending search request:", err)
 		log.Fatal(err)

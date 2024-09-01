@@ -3,8 +3,10 @@ package util
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/gob"
 	"fmt"
 	"math/big"
+	"sync"
 )
 
 const MAXBYTES = 64
@@ -58,6 +60,17 @@ type SearchPayload struct {
 
 type Response struct {
 	SEOpList []SEOp
+}
+
+var registerOnce sync.Once
+
+func RegisterTypes() {
+	registerOnce.Do(func() {
+		gob.Register(UpdatePayload{})
+		gob.Register(SearchPayload{})
+		gob.Register(Response{})
+		gob.Register(Request{})
+	})
 }
 
 func PrfF(key, message []byte) ([]byte, error) {

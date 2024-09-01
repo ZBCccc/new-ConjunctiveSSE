@@ -22,10 +22,6 @@ type Client struct {
 }
 
 func (client *Client) Setup() error {
-	// 注册类型
-	// gob.Register(util.UpdatePayload{})
-	// gob.Register(util.SearchPayload{})
-
 	// 生成4个32字节长度的随机私钥
 	keyLen := 32
 
@@ -105,16 +101,8 @@ func (client *Client) Update(id string, w string, op util.Operation) error {
 		fmt.Println(err)
 		return err
 	}
-	A := new(big.Int).Mul(C, new(big.Int).SetBytes(idBytes))
+	A := new(big.Int).Mul(C, alpha1)
 	xtag := new(big.Int).Exp(client.g, A, client.p)
-
-	// 准备需要发送的数据
-	// data := util.DataPacket{
-	// 	Address: address,
-	// 	Val:     val,
-	// 	Alpha:   alpha,
-	// 	Xtag:    xtag,
-	// }
 
 	// 构造更新请求
 	req := util.Request{
@@ -126,9 +114,9 @@ func (client *Client) Update(id string, w string, op util.Operation) error {
 			Xtag:    xtag,
 		},
 	}
+	fmt.Println("关键词:", w, "更新次数:", client.UpdateCnt[w], "请求:", req)
 
 	// 创建一个 gob 编码器
-	
 	encoder := gob.NewEncoder(client.Conn)
 
 	// 发送数据
@@ -156,8 +144,6 @@ func (client *Client) Search(q []string) error {
 		}
 	}
 
-	fmt.Println("w1:", w1)
-	fmt.Println("counter:", counter)
 	// 初始化stokenList和xtokenList
 	stokenList := make([][]byte, counter)
 	xtokenList := make([][]*big.Int, counter)
@@ -166,7 +152,7 @@ func (client *Client) Search(q []string) error {
 	}
 	for j := 0; j < counter; j++ {
 		m := []byte(w1)
-		m = append(m, big.NewInt(int64(j)).Bytes()...)
+		m = append(m, big.NewInt(int64(j+1)).Bytes()...)
 
 		saddr, err := util.PrfF(kt, append(m, big.NewInt(int64(0)).Bytes()...))
 		if err != nil {
@@ -201,20 +187,16 @@ func (client *Client) Search(q []string) error {
 		},
 	}
 
-	fmt.Println("Sending search request...")
 	// 创建一个 gob 编码器
 	encoder := gob.NewEncoder(client.Conn)
 
-	fmt.Println(req)
 	// 发送数据
 	err := encoder.Encode(req)
 	if err != nil {
 		fmt.Println("Error sending data:", err)
 		return err
 	}
-	fmt.Println("Data sent successfully")
-	fmt.Println("Waiting for response...")
-
+	fmt.Println("搜索请求stokenList:", stokenList, "xtokenList:", xtokenList)
 
 	// 接收数据
 	decoder := gob.NewDecoder(client.Conn)
@@ -225,6 +207,7 @@ func (client *Client) Search(q []string) error {
 		return err
 	}
 	sEOpList := resp.SEOpList
+	fmt.Println("sEOpList:", sEOpList)
 
 	// 本地检查
 	sIdList := make([][]byte, 0)
@@ -232,21 +215,24 @@ func (client *Client) Search(q []string) error {
 		j, sval, cnt := sEOp.J, sEOp.Sval, sEOp.Cnt
 		w1Andj := append(append([]byte(w1), big.NewInt(int64(j)).Bytes()...), big.NewInt(int64(1)).Bytes()...)
 		tmp, err := util.PrfF(kt, w1Andj)
+		fmt.Println("w1Andj:", w1Andj)
 		if err != nil {
 			fmt.Println(err)
 			return err
 		}
-		id := make([]byte, 65)
-		for i := 0; i < 65; i++ {
+		id := make([]byte, 31)
+		for i := 0; i < 31; i++ {
 			id[i] = tmp[i] ^ sval[i]
 		}
-		op := id[65] ^ sval[65]
-		if op == byte(util.Add) && cnt == len(q)-1 {
+		var op util.Operation = util.Operation(tmp[31] ^ sval[31])
+		fmt.Println("op:", op)
+		if op == util.Add && cnt == len(q)-1 {
 			sIdList = append(sIdList, id)
-		} else if op == byte(util.Del) && cnt > 0 {
+		} else if op == util.Del && cnt > 0 {
 			sIdList = removeElement(sIdList, id)
 		}
 	}
+	fmt.Println("sIdList:", sIdList)
 
 	return nil
 }
