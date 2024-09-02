@@ -3,7 +3,6 @@ package ODXT
 import (
 	"ConjunctiveSSE/util"
 	"encoding/gob"
-	"fmt"
 	"io"
 	"log"
 	"math/big"
@@ -71,7 +70,7 @@ func (server *Server) Search(stokenList [][]byte, xtokenList [][]*big.Int) []uti
 	// 搜索数据
 	sEOpList := make([]util.SEOp, len(stokenList))
 	// 遍历 stokenList
-	cnt := 1
+	var cnt int
 	for j, stoken := range stokenList {
 		cnt = 1
 		// 获取 Record
@@ -83,7 +82,6 @@ func (server *Server) Search(stokenList [][]byte, xtokenList [][]*big.Int) []uti
 		for _, xtoken := range xtokenList[j] {
 			// 判断 xtag 是否匹配
 			xtag := new(big.Int).Exp(xtoken, record.Alpha, server.p)
-			fmt.Println("xtag:", xtag, "xtoken:", xtoken, "record.Alpha:", record.Alpha, "server.p:", server.p)
 			if server.EDB.XSet.Test(xtag.Bytes()) {
 				cnt++
 			}

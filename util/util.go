@@ -120,13 +120,14 @@ func BytesXORWithOp(mac, id []byte, op int) ([]byte, error) {
 		return nil, fmt.Errorf("MAC length must be 32 bytes")
 	}
 
-	// 确保id的长度为31字节
-	idPadded := make([]byte, 31)
-	copy(idPadded, id)
+	// 确保id的长度为小于等于31字节
+	if len(id) > 31 {
+		return nil, fmt.Errorf("id length must be less than or equal to 31 bytes")
+	}
 
 	// 执行异或操作
-	for i := 0; i < 31; i++ {
-		mac[i] = mac[i] ^ idPadded[i]
+	for i := 0; i < len(id); i++ {
+		mac[i] = mac[i] ^ id[i]
 	}
 
 	// 将MAC的最后一个字节与op异或

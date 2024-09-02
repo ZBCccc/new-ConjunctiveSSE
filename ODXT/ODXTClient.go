@@ -46,6 +46,7 @@ func (client *Client) Setup() error {
 		log.Println("Error connecting:", err)
 		return err
 	}
+
 	return nil
 }
 
@@ -59,16 +60,14 @@ func (client *Client) Update(id string, w string, op util.Operation) error {
 	client.UpdateCnt[w]++
 
 	// 计算HMAC-SHA256 PRF值
-	m := []byte(w)
-	m = append(m, big.NewInt(int64(client.UpdateCnt[w])).Bytes()...)
-
+	m := append([]byte(w), big.NewInt(int64(client.UpdateCnt[w])).Bytes()...)
 	address, err := util.PrfF(kt, append(m, big.NewInt(int64(0)).Bytes()...))
 	if err != nil {
 		fmt.Println(err)
 		return err
 	}
 
-	val, err := util.PrfF(kx, append(m, big.NewInt(int64(1)).Bytes()...))
+	val, err := util.PrfF(kt, append(m, big.NewInt(int64(1)).Bytes()...))
 	if err != nil {
 		fmt.Println(err)
 		return err
@@ -92,8 +91,8 @@ func (client *Client) Update(id string, w string, op util.Operation) error {
 		fmt.Println(err)
 		return err
 	}
-	//p := new(big.Int).Sub(client.p, big.NewInt(1))
-	alpha2 = new(big.Int).ModInverse(alpha2, client.p)
+	p := new(big.Int).Sub(client.p, big.NewInt(1))
+	alpha2 = new(big.Int).ModInverse(alpha2, p)
 	alpha := new(big.Int).Mul(alpha1, alpha2)
 
 	C, err := util.PrfFp(kx, []byte(w), client.p, client.g)
@@ -114,7 +113,6 @@ func (client *Client) Update(id string, w string, op util.Operation) error {
 			Xtag:    xtag,
 		},
 	}
-	fmt.Println("关键词:", w, "更新次数:", client.UpdateCnt[w], "请求:", req)
 
 	// 创建一个 gob 编码器
 	encoder := gob.NewEncoder(client.Conn)
@@ -167,8 +165,8 @@ func (client *Client) Search(q []string) error {
 				continue
 			}
 			xtoken1, _ := util.PrfFp(kx, []byte(wi), client.p, client.g)
-			xtoken2, _ := util.PrfFp(kz, []byte(w1), client.p, client.g)
-			xtokenList[j][i] = new(big.Int).Exp(xtoken1, xtoken2, client.p)
+			xtoken2, _ := util.PrfFp(kz, append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), client.p, client.g)
+			xtokenList[j][i] = new(big.Int).Exp(client.g, new(big.Int).Mul(xtoken1, xtoken2), client.p)
 			i++
 		}
 
@@ -196,7 +194,6 @@ func (client *Client) Search(q []string) error {
 		fmt.Println("Error sending data:", err)
 		return err
 	}
-	fmt.Println("搜索请求stokenList:", stokenList, "xtokenList:", xtokenList)
 
 	// 接收数据
 	decoder := gob.NewDecoder(client.Conn)
@@ -207,7 +204,6 @@ func (client *Client) Search(q []string) error {
 		return err
 	}
 	sEOpList := resp.SEOpList
-	fmt.Println("sEOpList:", sEOpList)
 
 	// 本地检查
 	sIdList := make([][]byte, 0)
@@ -215,7 +211,6 @@ func (client *Client) Search(q []string) error {
 		j, sval, cnt := sEOp.J, sEOp.Sval, sEOp.Cnt
 		w1Andj := append(append([]byte(w1), big.NewInt(int64(j)).Bytes()...), big.NewInt(int64(1)).Bytes()...)
 		tmp, err := util.PrfF(kt, w1Andj)
-		fmt.Println("w1Andj:", w1Andj)
 		if err != nil {
 			fmt.Println(err)
 			return err
@@ -225,14 +220,12 @@ func (client *Client) Search(q []string) error {
 			id[i] = tmp[i] ^ sval[i]
 		}
 		var op util.Operation = util.Operation(tmp[31] ^ sval[31])
-		fmt.Println("op:", op)
-		if op == util.Add && cnt == len(q)-1 {
+		if op == util.Add && cnt == len(q) {
 			sIdList = append(sIdList, id)
 		} else if op == util.Del && cnt > 0 {
 			sIdList = removeElement(sIdList, id)
 		}
 	}
-	fmt.Println("sIdList:", sIdList)
 
 	return nil
 }
