@@ -22,9 +22,6 @@ type Client struct {
 }
 
 func (client *Client) Setup() error {
-	// 注册类型
-	// gob.Register(util.UpdatePayload{})
-	// gob.Register(util.SearchPayload{})
 
 	// 生成4个32字节长度的随机私钥
 	keyLen := 32
