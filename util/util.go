@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"fmt"
+	"log"
 	"math/big"
 	"sync"
 )
@@ -112,6 +113,31 @@ func PrfFp(key, message []byte, p, g *big.Int) (*big.Int, error) {
 	result := new(big.Int).Exp(g, ex, pMinus1)
 
 	return result, nil
+}
+
+func ComputeAlpha(Ky, Kz, id []byte, op int, wWc []byte, p, g *big.Int) (*big.Int, *big.Int, error) {
+	// 计算 PRF_p(Ky, id||op)
+	idOp := append(id, byte(op))
+	alpha1, err := PrfFp(Ky, idOp, p, g)
+	if err != nil {
+		log.Println(err)
+		return nil, nil, err
+	}
+
+	// 计算 PRF_p(Kz, w||wc)
+	alpha2, err := PrfFp(Kz, wWc, p, g)
+	if err != nil {
+		fmt.Println(err)
+		return nil, nil, err
+	}
+
+	// Calculate alpha = alpha1 * alpha2
+	pMinus1 := new(big.Int).Sub(p, big.NewInt(1))
+	alpha2 = new(big.Int).ModInverse(alpha2, pMinus1)
+
+	alpha := new(big.Int).Mul(alpha1, alpha2)
+
+	return alpha, alpha1, nil
 }
 
 // BytesXORWithOp 将MAC值的前31个字节与id异或，并将MAC的最后一个字节与op异或

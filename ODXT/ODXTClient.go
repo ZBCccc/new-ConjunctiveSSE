@@ -120,6 +120,7 @@ func (client *Client) Update(id string, w string, op util.Operation) error {
 
 	// 发送数据
 	err = encoder.Encode(req)
+	//fmt.Println("req:", req)
 	if err != nil {
 		fmt.Println("Error sending data:", err)
 		return err

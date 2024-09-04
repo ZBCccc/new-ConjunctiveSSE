@@ -1,10 +1,10 @@
 package main
 
 import (
+	"ConjunctiveSSE/ODXT"
 	"flag"
 	"fmt"
 	"strings"
-	"ConjunctiveSSE/ODXT"
 )
 
 var test_db_name, test_phase, test_group string
@@ -36,13 +36,10 @@ func TestODXT() error {
 		return err
 	}
 	if strings.Contains(test_phase, "c") {
-		ODXT.Ciphertext_Gen_Phase()
+		ODXT.CiphertextGenPhase()
 	} else if strings.Contains(test_phase, "s") {
-		ODXT.Deletion_phase_with_search(del_rate)
+		ODXT.DeletionPhaseWithSearch(del_rate)
 	}
 
 	return nil
 }
-
-
-

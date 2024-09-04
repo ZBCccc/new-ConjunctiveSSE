@@ -111,7 +111,8 @@ func (server *Server) handleConnection(conn net.Conn) error {
 				return nil
 			} else {
 				log.Println("Error decoding request:", err)
-				return err
+				continue
+				//return err
 			}
 		}
 
