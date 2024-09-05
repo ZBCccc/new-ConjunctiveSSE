@@ -4,14 +4,18 @@ import (
 	"ConjunctiveSSE/util"
 	"context"
 	"crypto/rand"
+	"encoding/gob"
+	"fmt"
 	"github.com/bits-and-blooms/bloom/v3"
+	mapset "github.com/deckarep/golang-set/v2"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"math/big"
+	"os"
 	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 //var PlaintextDB *mongo.Collection
@@ -36,7 +40,7 @@ type UpdatePayload struct {
 	Alpha   *big.Int
 }
 
-func (odxt *ODXT) DBSetup(db_name string) error {
+func (odxt *ODXT) DBSetup(dbName string) error {
 	// 生成4个32字节长度的随机私钥
 	keyLen := 32
 
@@ -78,7 +82,7 @@ func (odxt *ODXT) DBSetup(db_name string) error {
 	}
 
 	// 获取数据库和集合的句柄
-	odxt.PlaintextDB = client.Database(db_name)
+	odxt.PlaintextDB = client.Database(dbName)
 
 	return nil
 }
@@ -89,6 +93,8 @@ func (odxt *ODXT) CiphertextGenPhase() {
 
 	uploadList := make([]UpdatePayload, UploadListMaxLength)
 	encryptTimeList := make([]time.Duration, 0)
+	cipherNum := 0
+	var encryptTimeTotal time.Duration
 
 	// 从MongoDB数据库中获取名为"id_keywords"的集合
 	collection := plaintextDB.Collection("id_keywords")
@@ -112,7 +118,7 @@ func (odxt *ODXT) CiphertextGenPhase() {
 
 	// 读取所有记录
 	for _, keywordId := range keywordIds {
-		ids := keywordId["id"].([]string)
+		ids := removeDuplicates(keywordId["id"].([]string))
 		keyword := keywordId["keyword"].(string)
 		encryptTime, keywordCipher, err := odxt.Encrypt(keyword, ids, 1)
 		if err != nil {
@@ -132,6 +138,8 @@ func (odxt *ODXT) CiphertextGenPhase() {
 			// 清空上传列表
 			uploadList = make([]UpdatePayload, UploadListMaxLength)
 		}
+		cipherNum += len(ids)
+		encryptTimeTotal += encryptTime
 	}
 
 	// 如果上传列表不为空， 则将其写入数据库
@@ -149,18 +157,53 @@ func (odxt *ODXT) CiphertextGenPhase() {
 		log.Fatal(err)
 	}
 
+	fmt.Println("Total number of keywords:", len(keywordIds))
+	fmt.Println("Total time for encrypting", encryptTimeTotal)
 	return
 
 }
 
-func WriteUploadList(uploadList []UpdatePayload, filename string) error {
-	// 写入文件，将[]UpdatePayload写入文件
-	// 打开文件
-	
+func WriteEncryptTime(encryptTimeList []time.Duration, fileName string) error {
+	// 创建或打开文件
+	file, err := os.Create(fileName)
+	if err != nil {
+		fmt.Println("Error creating file:", err)
+		return err
+	}
+	defer file.Close()
 
+	// 将时间逐个写入文件
+	for _, encryptTime := range encryptTimeList {
+		_, err := file.WriteString(encryptTime.String() + "\n")
+		if err != nil {
+			fmt.Println("Error writing time:", err)
+			return err
+		}
+	}
+	return nil
+}
 
+// WriteUploadList 写入文件，将[]UpdatePayload写入文件
+func WriteUploadList(uploadList []UpdatePayload, fileName string) error {
+	// 创建或打开文件
+	file, err := os.Create(fileName)
+	if err != nil {
+		fmt.Println("Error creating file:", err)
+		return err
+	}
+	defer file.Close()
 
+	// 创建编码器
+	encoder := gob.NewEncoder(file)
 
+	// 将结构体切片逐个写入文件
+	for _, payload := range uploadList {
+		err := encoder.Encode(payload)
+		if err != nil {
+			fmt.Println("Error encoding payload:", err)
+			return err
+		}
+	}
 	return nil
 }
 
@@ -223,4 +266,17 @@ func (odxt *ODXT) Encrypt(keyword string, ids []string, operation int) (time.Dur
 }
 
 func DeletionPhaseWithSearch(del_rate int) {
+}
+
+func removeDuplicates(intSlice []string) []string {
+	// 创建一个新的整数集合
+	stringSet := mapset.NewSet[string]()
+
+	// 将切片中的元素添加到集合中
+	for _, v := range intSlice {
+		stringSet.Add(v)
+	}
+
+	// 转换为切片
+	return stringSet.ToSlice()
 }
