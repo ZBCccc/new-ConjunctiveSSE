@@ -120,7 +120,48 @@ func (odxt *ODXT) CiphertextGenPhase() {
 		}
 		uploadList = append(uploadList, keywordCipher...)
 		encryptTimeList = append(encryptTimeList, encryptTime)
+
+		// 如果上传列表的长度达到最大限制， 则将其写入数据库
+		if len(uploadList) >= UploadListMaxLength {
+			// 写入文件
+			err = WriteUploadList(uploadList, "uploadList.txt")
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			// 清空上传列表
+			uploadList = make([]UpdatePayload, UploadListMaxLength)
+		}
 	}
+
+	// 如果上传列表不为空， 则将其写入数据库
+	if len(uploadList) > 0 {
+		// 写入文件
+		err = WriteUploadList(uploadList, "uploadList.txt")
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	// 写入加密时间
+	err = WriteEncryptTime(encryptTimeList, "encryptTime.txt")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return
+
+}
+
+func WriteUploadList(uploadList []UpdatePayload, filename string) error {
+	// 写入文件，将[]UpdatePayload写入文件
+	// 打开文件
+	
+
+
+
+
+	return nil
 }
 
 func (odxt *ODXT) Encrypt(keyword string, ids []string, operation int) (time.Duration, []UpdatePayload, error) {
