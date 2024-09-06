@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	mrand "math/rand"
 	"os"
 	"time"
 
@@ -40,6 +41,12 @@ type UpdatePayload struct {
 	Address []byte
 	Val     []byte
 	Alpha   *big.Int
+}
+
+type SEOp struct {
+	J    int
+	Sval []byte
+	Cnt  int
 }
 
 func (odxt *ODXT) DBSetup(dbName string) error {
@@ -284,9 +291,74 @@ func (odxt *ODXT) Encrypt(keyword string, ids []string, operation int) (time.Dur
 	return encryptedTime, keywordsCipher, nil
 }
 
-func DeletionPhaseWithSearch(del_rate int) {
+func (odxt *ODXT) DeletionPhaseWithSearch(del_rate int) {
+
 }
 
+// Search 搜索，生成search token，并查询SQL数据库
+func (odxt *ODXT) Search(q []string) {
+	start := time.Now()
+	// 生成陷门	
+	stokenList, xtokenList := odxt.Trapdoor(q)
+	trapdoorTime := time.Since(start)
+
+	// 查询SQL数据库
+	
+
+}
+
+// Trapdoor 生成陷门
+func (odxt *ODXT) Trapdoor(q []string) ([][]byte, [][]*big.Int) {
+	// 读取密钥
+	kt, kx, kz := odxt.Keys[0], odxt.Keys[1], odxt.Keys[3]
+	counter, w1, st := 1000000, q[0], odxt.UpdateCnt
+
+	// 选择查询频率最低的关键字
+	for _, w := range q {
+		num := st[w]
+		if num < counter {
+			w1 = w
+			counter = num
+		}
+	}
+
+	// 初始化stokenList和xtokenList
+	stokenList := make([][]byte, counter)
+	xtokenList := make([][]*big.Int, counter)
+	for i := range xtokenList {
+		xtokenList[i] = make([]*big.Int, len(q)-1)
+	}
+	for j := 0; j < counter; j++ {
+		m := []byte(w1)
+		m = append(m, big.NewInt(int64(j+1)).Bytes()...)
+
+		saddr, err := util.PrfF(kt, append(m, big.NewInt(int64(0)).Bytes()...))
+		if err != nil {
+			fmt.Println(err)
+		}
+		stokenList[j] = saddr
+
+		i := 0
+		for _, wi := range q {
+			if wi == w1 {
+				continue
+			}
+			xtoken1, _ := util.PrfFp(kx, []byte(wi), odxt.p, odxt.g)
+			xtoken2, _ := util.PrfFp(kz, append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), odxt.p, odxt.g)
+			xtokenList[j][i] = new(big.Int).Exp(odxt.g, new(big.Int).Mul(xtoken1, xtoken2), odxt.p)
+			i++
+		}
+
+		// 打乱切片中的元素
+		mrand.Shuffle(len(xtokenList[j]), func(i, j int) {
+			xtokenList[j][i], xtokenList[j][j] = xtokenList[j][j], xtokenList[j][i]
+		})
+	}
+
+	return stokenList, xtokenList
+}
+
+// removeDuplicates 去除切片中的重复元素
 func removeDuplicates(intSlice []string) []string {
 	// 创建一个新的string集合
 	stringSet := mapset.NewSet[string]()

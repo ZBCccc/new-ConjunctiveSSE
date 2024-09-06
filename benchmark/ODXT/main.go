@@ -39,7 +39,7 @@ func TestODXT() error {
 	if strings.Contains(testPhase, "c") {
 		odxt.CiphertextGenPhase()
 	} else if strings.Contains(testPhase, "s") {
-		ODXT.DeletionPhaseWithSearch(delRate)
+		odxt.DeletionPhaseWithSearch(delRate)
 	}
 
 	return nil

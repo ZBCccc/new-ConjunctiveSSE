@@ -8,11 +8,6 @@ require (
 	github.com/go-sql-driver/mysql v1.8.1
 	go.mongodb.org/mongo-driver v1.16.1
 )
-require (
-	github.com/bits-and-blooms/bloom/v3 v3.7.0
-	github.com/go-sql-driver/mysql v1.8.1
-	go.mongodb.org/mongo-driver v1.16.1
-)
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
