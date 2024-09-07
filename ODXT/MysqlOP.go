@@ -2,36 +2,38 @@ package ODXT
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 
 	_ "github.com/go-sql-driver/mysql"
 )
 
 // MySQLSetup sets up the MySQL database
-func MySQLSetup(dbName string) (*sql.DB, error) {
+func MySQLSetup(tableName string) (*sql.DB, error) {
 	// Connect to the MySQL database
-	db, err := sql.Open("mysql", "root:123456@tcp(localhost:3306)/")
+	db, err := sql.Open("mysql", "root:123456@tcp(localhost:3306)/ODXT")
 	if err != nil {
 		db.Close()
 		log.Fatal(err)
 		return nil, err
 	}
 
-	// 如果存在同名数据库，则删除
-	_, err = db.Exec("DROP DATABASE IF EXISTS " + dbName)
+	// 测试数据库连接
+	err = db.Ping()
 	if err != nil {
-		db.Close()
-		log.Fatal(err)
+		log.Fatal("Cannot connect to database:", err)
 		return nil, err
 	}
 
-	// 创建数据库
-	_, err = db.Exec("CREATE DATABASE " + dbName)
-	if err != nil {
-		db.Close()
-		log.Fatal(err)
-		return nil, err
-	}
+	// 创建数据表tableName
+	createTableSQL := fmt.Sprintf(`
+	CREATE TABLE IF NOT EXISTS %s (
+		id INT AUTO_INCREMENT PRIMARY KEY,
+		name VARCHAR(50) NOT NULL,
+		email VARCHAR(100) NOT NULL UNIQUE,
+		age INT,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);`, tableName)
 
 	return db, nil
 }
@@ -68,7 +70,7 @@ func WriteUploadList(db *sql.DB, uploadList []UpdatePayload, tableName string) e
 	}
 
 	return nil
-}	
+}
 
 func MySQLInsert(db *sql.DB, tableName string, data []byte) error {
 	stmt, err := db.Prepare("INSERT INTO " + tableName + " (data) VALUES (?)")
