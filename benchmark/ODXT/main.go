@@ -31,13 +31,13 @@ func TestODXT() error {
 	fmt.Println("Start test_group", testGroup, "phase", testPhase)
 	fmt.Println("Start initial db")
 	var odxt ODXT.ODXT
-	err := odxt.DBSetup(testDbName)
+	err := odxt.DBSetup(testDbName, false)
 	if err != nil {
 		fmt.Println("DBSetup error", err)
 		return err
 	}
 	if strings.Contains(testPhase, "c") {
-		odxt.CiphertextGenPhase()
+		odxt.CiphertextGenPhase(testDbName)
 	} else if strings.Contains(testPhase, "s") {
 		odxt.DeletionPhaseWithSearch(delRate)
 	}

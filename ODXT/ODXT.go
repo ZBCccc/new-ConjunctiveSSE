@@ -2,10 +2,11 @@ package ODXT
 
 import (
 	"ConjunctiveSSE/util"
+	"bufio"
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
-	"encoding/gob"
 	"fmt"
 	"log"
 	"math/big"
@@ -36,6 +37,7 @@ type ODXT struct {
 	p           *big.Int
 	XSet        *bloom.BloomFilter
 	PlaintextDB *mongo.Database
+	MySQLDB     *sql.DB
 }
 
 type UpdatePayload struct {
@@ -50,17 +52,47 @@ type SEOp struct {
 	Cnt  int
 }
 
-func (odxt *ODXT) DBSetup(dbName string) error {
-	// 生成4个32字节长度的随机私钥
-	keyLen := 32
+func ReadKeys(fileName string) [4][]byte {
+	// 读取文件
+	file, err := os.Open(fileName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
 
+	// 读取密钥
+	var keys [4][]byte
+	scanner := bufio.NewScanner(file)
+
+	// 读取4个密钥
 	for i := 0; i < 4; i++ {
-		key := make([]byte, keyLen)
-		if _, err := rand.Read(key); err != nil {
-			log.Println("Error generating random key:", err)
-			return err
+		line := scanner.Text()
+		key, err := base64.StdEncoding.DecodeString(line)
+		if err != nil {
+			log.Fatal(err)
 		}
-		odxt.Keys[i] = key
+
+		keys[i] = key
+	}
+
+	return keys
+}
+
+func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
+	if randomKey {
+		// 生成4个32字节长度的随机私钥
+		keyLen := 32
+		for i := 0; i < 4; i++ {
+			key := make([]byte, keyLen)
+			if _, err := rand.Read(key); err != nil {
+				log.Println("Error generating random key:", err)
+				return err
+			}
+			odxt.Keys[i] = key
+		}
+	} else {
+		// 读取私钥
+		odxt.Keys = ReadKeys("keys.txt")
 	}
 
 	// 初始化 UpdateCnt
@@ -74,33 +106,30 @@ func (odxt *ODXT) DBSetup(dbName string) error {
 	odxt.XSet = bloom.NewWithEstimates(1000000, 0.01) // 可以存储100万个元素,错误率为1%
 
 	// 连接MongoDB
-	// Set client options
-	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
-
-	// Connect to MongoDB
-	client, err := mongo.Connect(context.TODO(), clientOptions)
+	var err error
+	odxt.PlaintextDB, err = MongoDBSetup(dbName)
 	if err != nil {
 		log.Fatal(err)
 		return err
 	}
 
-	// Check the connection
-	err = client.Ping(context.TODO(), nil)
+	// 连接MySQL数据库
+	odxt.MySQLDB, err = MySQLSetup(dbName)
 	if err != nil {
 		log.Fatal(err)
 		return err
 	}
-
-	// 获取数据库和集合的句柄
-	odxt.PlaintextDB = client.Database(dbName)
 
 	return nil
 }
 
-func (odxt *ODXT) CiphertextGenPhase() {
+func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 	// 获取MongoDB数据库
 	plaintextDB := odxt.PlaintextDB
 
+	defer plaintextDB.Client().Disconnect(context.Background())
+
+	// 初始化
 	uploadList := make([]UpdatePayload, UploadListMaxLength)
 	encryptTimeList := make([]time.Duration, 0)
 	cipherNum := 0
@@ -128,7 +157,6 @@ func (odxt *ODXT) CiphertextGenPhase() {
 
 	// 读取所有记录
 	for _, keywordId := range keywordIds {
-		// ids := keywordId["val_set"].([]string)
 		valSet, ok := keywordId["val_set"].(primitive.A)
 		if !ok {
 			log.Fatal("val_set is not of type primitive.A")
@@ -153,7 +181,7 @@ func (odxt *ODXT) CiphertextGenPhase() {
 		// 如果上传列表的长度达到最大限制， 则将其写入数据库
 		if len(uploadList) >= UploadListMaxLength {
 			// 写入文件
-			err = WriteUploadList(uploadList, "uploadList.txt")
+			err = WriteUploadList(odxt.MySQLDB, uploadList, dbName)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -171,7 +199,7 @@ func (odxt *ODXT) CiphertextGenPhase() {
 	// 如果上传列表不为空， 则将其写入数据库
 	if len(uploadList) > 0 {
 		// 写入文件
-		err = WriteUploadList(uploadList, "uploadList.txt")
+		err = WriteUploadList(odxt.MySQLDB, uploadList, dbName)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -207,30 +235,6 @@ func WriteEncryptTime(encryptTimeList []time.Duration, fileName string) error {
 	return nil
 }
 
-// WriteUploadList 写入文件，将[]UpdatePayload写入文件
-func WriteUploadList(uploadList []UpdatePayload, fileName string) error {
-	// 创建或打开文件
-	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		fmt.Println("Error opening file:", err)
-		return err
-	}
-	defer file.Close()
-
-	// 创建编码器
-	encoder := gob.NewEncoder(file)
-
-	// 将结构体切片逐个写入文件
-	for _, payload := range uploadList {
-		err := encoder.Encode(payload)
-		if err != nil {
-			fmt.Println("Error encoding payload:", err)
-			return err
-		}
-	}
-	return nil
-}
-
 func (odxt *ODXT) Encrypt(keyword string, ids []string, operation int) (time.Duration, []UpdatePayload, error) {
 	kt, kx, ky, kz := odxt.Keys[0], odxt.Keys[1], odxt.Keys[2], odxt.Keys[3]
 	p, g := odxt.p, odxt.g
@@ -258,29 +262,29 @@ func (odxt *ODXT) Encrypt(keyword string, ids []string, operation int) (time.Dur
 
 		// val = PRF(kt, w||wc||1) xor (id||op)
 		val, _ := util.PrfF(kt, append(wWc, big.NewInt(int64(1)).Bytes()...))
-		// if err != nil {
-		// 	log.Println(err)
-		// 	return time.Second, nil, err
-		// }
+		if err != nil {
+			log.Println(err)
+			return time.Second, nil, err
+		}
 		val, _ = util.BytesXORWithOp(val, []byte(id), operation)
-		// if err != nil {
-		// 	log.Println(err)
-		// 	return time.Second, nil, err
-		// }
+		if err != nil {
+			log.Println(err)
+			return time.Second, nil, err
+		}
 
 		// alpha = Fp(ky, id||op) * Fp(kz, w||wc)^-1
 		alpha, alpha1, _ := util.ComputeAlpha(ky, kz, []byte(id), operation, wWc, p, g)
-		// if err != nil {
-		// 	log.Println(err)
-		// 	return time.Second, nil, err
-		// }
+		if err != nil {
+			log.Println(err)
+			return time.Second, nil, err
+		}
 
 		// xtag = g^{Fp(Kx, w)*Fp(Ky, id||op)} mod p
 		C, _ := util.PrfFp(kx, []byte(keyword), p, g)
-		// if err != nil {
-		// 	log.Println(err)
-		// 	return time.Second, nil, err
-		// }
+		if err != nil {
+			log.Println(err)
+			return time.Second, nil, err
+		}
 		A := new(big.Int).Mul(C, alpha1)
 		xtag := new(big.Int).Exp(g, A, p)
 
@@ -302,19 +306,76 @@ func (odxt *ODXT) DeletionPhaseWithSearch(del_rate int) {
 
 }
 
+func (odxt *ODXT) SearchPhase(q []string, tableName string) {
+	// 搜索
+	trapdoorTime, serverTime, sEOpList := odxt.Search(q, tableName)
+
+	// 解密密文获得最终结果
+	start := time.Now()
+	sIdList, err := odxt.Decrypt(q, sEOpList)
+	if err != nil {
+		log.Fatal(err)
+	}
+	decryptTime := time.Since(start)
+
+	clientTime := trapdoorTime + decryptTime
+	
+
+}
+
 // Search 搜索，生成search token，并查询SQL数据库
-func (odxt *ODXT) Search(q []string) {
+func (odxt *ODXT) Search(q []string, tableName string) (time.Duration, time.Duration, []util.SEOp) {
 	start := time.Now()
 	// 生成陷门
 	stokenList, xtokenList := odxt.Trapdoor(q)
 	trapdoorTime := time.Since(start)
 
+	start = time.Now()
 	// 查询SQL数据库
+	tmpResult, err := SearchStoken(odxt.MySQLDB, stokenList, tableName)
+	if err != nil {
+		log.Fatal(err)
+	}
 
+	sEOpList := make([]util.SEOp, len(stokenList))
+
+	// 搜索数据
+	var cnt int
+	for j, value := range tmpResult {
+		cnt = 1
+
+		// 遍历 xtokenList
+		for _, xtoken := range xtokenList[j] {
+			// 类型转换
+			xtokenInt, err := util.Base64ToBigInt(xtoken)
+			if err != nil {
+				log.Fatal(err)
+			}
+			alpha, err := util.Base64ToBigInt(value.Alpha)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			// 判断 xtag 是否匹配
+			xtag := new(big.Int).Exp(xtokenInt, alpha, odxt.p)
+			if odxt.XSet.Test(xtag.Bytes()) {
+				cnt++
+			}
+		}
+
+		sEOpList[j] = util.SEOp{
+			J:    j + 1,
+			Sval: value.Value,
+			Cnt:  cnt,
+		}
+	}
+	serverTime := time.Since(start)
+
+	return trapdoorTime, serverTime, sEOpList
 }
 
 // Trapdoor 生成陷门
-func (odxt *ODXT) Trapdoor(q []string) ([][]byte, [][]*big.Int) {
+func (odxt *ODXT) Trapdoor(q []string) ([]string, [][]string) {
 	// 读取密钥
 	kt, kx, kz := odxt.Keys[0], odxt.Keys[1], odxt.Keys[3]
 	counter, w1, st := 1000000, q[0], odxt.UpdateCnt
@@ -329,20 +390,17 @@ func (odxt *ODXT) Trapdoor(q []string) ([][]byte, [][]*big.Int) {
 	}
 
 	// 初始化stokenList和xtokenList
-	stokenList := make([][]byte, counter)
-	xtokenList := make([][]*big.Int, counter)
+	stokenList := make([]string, counter)
+	xtokenList := make([][]string, counter)
 	for i := range xtokenList {
-		xtokenList[i] = make([]*big.Int, len(q)-1)
+		xtokenList[i] = make([]string, len(q)-1)
 	}
 	for j := 0; j < counter; j++ {
-		m := []byte(w1)
-		m = append(m, big.NewInt(int64(j+1)).Bytes()...)
-
-		saddr, err := util.PrfF(kt, append(m, big.NewInt(int64(0)).Bytes()...))
+		saddr, err := util.PrfF(kt, append(append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), big.NewInt(int64(0)).Bytes()...))
 		if err != nil {
 			fmt.Println(err)
 		}
-		stokenList[j] = saddr
+		stokenList[j] = base64.StdEncoding.EncodeToString(saddr)
 
 		i := 0
 		for _, wi := range q {
@@ -351,7 +409,8 @@ func (odxt *ODXT) Trapdoor(q []string) ([][]byte, [][]*big.Int) {
 			}
 			xtoken1, _ := util.PrfFp(kx, []byte(wi), odxt.p, odxt.g)
 			xtoken2, _ := util.PrfFp(kz, append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), odxt.p, odxt.g)
-			xtokenList[j][i] = new(big.Int).Exp(odxt.g, new(big.Int).Mul(xtoken1, xtoken2), odxt.p)
+			xtoken := new(big.Int).Exp(odxt.g, new(big.Int).Mul(xtoken1, xtoken2), odxt.p)
+			xtokenList[j][i] = base64.StdEncoding.EncodeToString(xtoken.Bytes())
 			i++
 		}
 
@@ -362,6 +421,48 @@ func (odxt *ODXT) Trapdoor(q []string) ([][]byte, [][]*big.Int) {
 	}
 
 	return stokenList, xtokenList
+}
+
+func (odxt *ODXT) Decrypt(q []string, sEOpList []util.SEOp) ([]string, error) {
+	kt := odxt.Keys[0]
+	counter, w1, st := 1000000, q[0], odxt.UpdateCnt
+
+	// 选择查询频率最低的关键字
+	for _, w := range q {
+		num := st[w]
+		if num < counter {
+			w1 = w
+			counter = num
+		}
+	}
+
+	sIdList := make([]string, 0)
+	for _, sEOp := range sEOpList {
+		j, sval, cnt := sEOp.J, sEOp.Sval, sEOp.Cnt
+		w1Andj := append(append([]byte(w1), big.NewInt(int64(j)).Bytes()...), big.NewInt(int64(1)).Bytes()...)
+		tmp, err := util.PrfF(kt, w1Andj)
+		if err != nil {
+			fmt.Println(err)
+			return nil, err
+		}
+		id := make([]byte, 31)
+		val, err := base64.StdEncoding.DecodeString(sval)
+		if err != nil {
+			log.Fatal(err)
+			return nil, err
+		}
+		for i := 0; i < 31; i++ {
+			id[i] = tmp[i] ^ val[i]
+		}
+		var op util.Operation = util.Operation(tmp[31] ^ val[31])
+		if op == util.Add && cnt == len(q) {
+			sIdList = append(sIdList, base64.StdEncoding.EncodeToString(id))
+		} else if op == util.Del && cnt > 0 {
+			sIdList = util.RemoveElement(sIdList, base64.StdEncoding.EncodeToString(id))
+		}
+	}
+
+	return sIdList, nil
 }
 
 // removeDuplicates 去除切片中的重复元素

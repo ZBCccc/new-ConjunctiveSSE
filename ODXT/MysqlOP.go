@@ -13,7 +13,6 @@ func MySQLSetup(tableName string) (*sql.DB, error) {
 	// Connect to the MySQL database
 	db, err := sql.Open("mysql", "root:123456@tcp(localhost:3306)/ODXT")
 	if err != nil {
-		db.Close()
 		log.Fatal(err)
 		return nil, err
 	}
@@ -25,64 +24,73 @@ func MySQLSetup(tableName string) (*sql.DB, error) {
 		return nil, err
 	}
 
-	// 创建数据表tableName
+	// 创建数据表tableName;如果表不存在则创建，如果表存在则不创建
+	// 表的结构为：id, address, value, alpha, created_at
+	// id 为自增主键
+	// address 为地址
+	// value 为值
+	// alpha 为alpha
+	// created_at 为创建时间
 	createTableSQL := fmt.Sprintf(`
 	CREATE TABLE IF NOT EXISTS %s (
 		id INT AUTO_INCREMENT PRIMARY KEY,
-		name VARCHAR(50) NOT NULL,
-		email VARCHAR(100) NOT NULL UNIQUE,
-		age INT,
+		address VARCHAR(255) NOT NULL,
+		value VARCHAR(255) NOT NULL,
+		alpha VARCHAR(255) NOT NULL,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);`, tableName)
+
+	_, err = db.Exec(createTableSQL)
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
 
 	return db, nil
 }
 
+// WriteUploadList writes the upload list to the MySQL database
 func WriteUploadList(db *sql.DB, uploadList []UpdatePayload, tableName string) error {
-	// 开始事务
-	tx, err := db.Begin()
+	// 准备插入语句，将结构体切片逐个写入数据库，将结构体中的Address, Value, Alpha写入数据库
+	insertSQL := "INSERT INTO " + tableName + " (address, value, alpha) VALUES (?, ?, ?)"
+	stmt, err := db.Prepare(insertSQL)
 	if err != nil {
-		return err
-	}
-
-	// 准备插入语句
-	stmt, err := tx.Prepare("INSERT INTO " + tableName + " (data) VALUES (?)")
-	if err != nil {
-		tx.Rollback()
+		log.Fatal(err)
 		return err
 	}
 	defer stmt.Close()
 
-	// 将结构体切片逐个写入数据库
 	for _, payload := range uploadList {
-		_, err := stmt.Exec(payload)
+		_, err = stmt.Exec(payload.Address, payload.Val, payload.Alpha)
 		if err != nil {
-			tx.Rollback()
+			log.Fatal(err)
 			return err
 		}
 	}
-
-	// 提交事务
-	err = tx.Commit()
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
 	return nil
 }
 
-func MySQLInsert(db *sql.DB, tableName string, data []byte) error {
-	stmt, err := db.Prepare("INSERT INTO " + tableName + " (data) VALUES (?)")
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
+type SearchPayload struct {
+	Value string
+	Alpha string
+}
 
-	_, err = stmt.Exec(data)
-	if err != nil {
-		return err
+// SearchStoken searches the stokenList in the MySQL database
+func SearchStoken(db *sql.DB, address []string, tableName string) ([]SearchPayload, error) {
+	// 准备查询语句，查询数据库中的value和alpha
+	querySQL := "SELECT value, alpha FROM " + tableName + " WHERE address = ?"
+
+	// 查询数据库
+	var value, alpha string
+	result := make([]SearchPayload, len(address))
+	for index, addr := range address {
+		err := db.QueryRow(querySQL, addr).Scan(&value, &alpha)
+		if err != nil {
+			log.Fatal(err)
+			return nil, err
+		}
+		result[index] = SearchPayload{Value: value, Alpha: alpha}
 	}
 
-	return nil
+	return result, nil
 }

@@ -208,7 +208,7 @@ func (client *Client) Search(q []string) error {
 	sEOpList := resp.SEOpList
 
 	// 本地检查
-	sIdList := make([][]byte, 0)
+	sIdList := make([]string, 0)
 	for _, sEOp := range sEOpList {
 		j, sval, cnt := sEOp.J, sEOp.Sval, sEOp.Cnt
 		w1Andj := append(append([]byte(w1), big.NewInt(int64(j)).Bytes()...), big.NewInt(int64(1)).Bytes()...)
@@ -232,12 +232,4 @@ func (client *Client) Search(q []string) error {
 	return nil
 }
 
-// 删除sIdList中的特定元素
-func removeElement(slice [][]byte, target []byte) [][]byte {
-	for i, v := range slice {
-		if bytes.Equal(v, target) {
-			return append(slice[:i], slice[i+1:]...)
-		}
-	}
-	return slice
-}
+

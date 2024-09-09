@@ -3,6 +3,7 @@ package util
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/gob"
 	"fmt"
 	"log"
@@ -28,7 +29,7 @@ type DataPacket struct {
 
 type SEOp struct {
 	J    int
-	Sval []byte
+	Sval string
 	Cnt  int
 }
 
@@ -186,4 +187,27 @@ func MulInv(a, b *big.Int) *big.Int {
 	}
 
 	return x.Mod(x, b)
+}
+
+func Base64ToBigInt(base64Str string) (*big.Int, error) {
+    // Base64解码
+    decodedBytes, err := base64.StdEncoding.DecodeString(base64Str)
+    if err != nil {
+        return nil, err
+    }
+
+    // 将[]byte转换为big.Int
+    bigIntValue := new(big.Int).SetBytes(decodedBytes)
+    return bigIntValue, nil
+}
+
+// 删除sIdList中的特定元素
+func RemoveElement(slice []string, target string) []string {
+	for i, v := range slice {
+		if v == target {
+			slice = append(slice[:i], slice[i+1:]...)
+			break
+		}
+	}
+	return slice
 }
