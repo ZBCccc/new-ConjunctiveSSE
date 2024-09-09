@@ -4,6 +4,7 @@ import (
 	"ConjunctiveSSE/util"
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/gob"
 	"fmt"
 	"log"
@@ -38,9 +39,9 @@ type ODXT struct {
 }
 
 type UpdatePayload struct {
-	Address []byte
-	Val     []byte
-	Alpha   *big.Int
+	Address string
+	Val     string
+	Alpha   string
 }
 
 type SEOp struct {
@@ -284,7 +285,13 @@ func (odxt *ODXT) Encrypt(keyword string, ids []string, operation int) (time.Dur
 		xtag := new(big.Int).Exp(g, A, p)
 
 		encryptedTime += time.Since(start)
-		keywordsCipher = append(keywordsCipher, UpdatePayload{address, val, alpha})
+
+		// Encoded the ciphertext
+		base64Address := base64.StdEncoding.EncodeToString(address)
+		base64Val := base64.StdEncoding.EncodeToString(val)
+		base64Alpha := base64.StdEncoding.EncodeToString(alpha.Bytes())
+
+		keywordsCipher = append(keywordsCipher, UpdatePayload{base64Address, base64Val, base64Alpha})
 		odxt.XSet.Add(xtag.Bytes())
 	}
 
@@ -298,12 +305,11 @@ func (odxt *ODXT) DeletionPhaseWithSearch(del_rate int) {
 // Search 搜索，生成search token，并查询SQL数据库
 func (odxt *ODXT) Search(q []string) {
 	start := time.Now()
-	// 生成陷门	
+	// 生成陷门
 	stokenList, xtokenList := odxt.Trapdoor(q)
 	trapdoorTime := time.Since(start)
 
 	// 查询SQL数据库
-	
 
 }
 
