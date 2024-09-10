@@ -4,14 +4,13 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/gob"
+	"encoding/csv"
 	"fmt"
 	"log"
 	"math/big"
-	"sync"
+	"os"
+	"path/filepath"
 )
-
-const MAXBYTES = 64
 
 type Operation int
 
@@ -20,59 +19,10 @@ const (
 	Add                  // 1
 )
 
-type DataPacket struct {
-	Address []byte
-	Val     []byte
-	Alpha   *big.Int
-	Xtag    *big.Int
-}
-
 type SEOp struct {
 	J    int
 	Sval string
 	Cnt  int
-}
-
-// RequestType 请求类型
-type RequestType int
-
-// 请求类型
-const (
-	Update RequestType = iota
-	Search
-)
-
-// Request 请求
-type Request struct {
-	Type    RequestType
-	Payload interface{}
-}
-
-type UpdatePayload struct {
-	Address []byte
-	Val     []byte
-	Alpha   *big.Int
-	Xtag    *big.Int
-}
-
-type SearchPayload struct {
-	StokenList [][]byte
-	XtokenList [][]*big.Int
-}
-
-type Response struct {
-	SEOpList []SEOp
-}
-
-var registerOnce sync.Once
-
-func RegisterTypes() {
-	registerOnce.Do(func() {
-		gob.Register(UpdatePayload{})
-		gob.Register(SearchPayload{})
-		gob.Register(Response{})
-		gob.Register(Request{})
-	})
 }
 
 func PrfF(key, message []byte) ([]byte, error) {
@@ -166,42 +116,19 @@ func BytesXORWithOp(mac, id []byte, op int) ([]byte, error) {
 	return mac, nil
 }
 
-// MulInv 计算 a 在模 b 下的乘法逆元
-func MulInv(a, b *big.Int) *big.Int {
-	// 确保 a 为正数
-	a = new(big.Int).Mod(a, b)
-
-	// 使用扩展欧几里得算法
-	x := new(big.Int)
-	y := new(big.Int)
-	gcd := new(big.Int).GCD(x, y, a, b)
-
-	// 如果 gcd 不为 1，则不存在乘法逆元
-	if gcd.Cmp(big.NewInt(1)) != 0 {
-		return nil
-	}
-
-	// 确保结果为正数
-	if x.Sign() < 0 {
-		x.Add(x, b)
-	}
-
-	return x.Mod(x, b)
-}
-
 func Base64ToBigInt(base64Str string) (*big.Int, error) {
-    // Base64解码
-    decodedBytes, err := base64.StdEncoding.DecodeString(base64Str)
-    if err != nil {
-        return nil, err
-    }
+	// Base64解码
+	decodedBytes, err := base64.StdEncoding.DecodeString(base64Str)
+	if err != nil {
+		return nil, err
+	}
 
-    // 将[]byte转换为big.Int
-    bigIntValue := new(big.Int).SetBytes(decodedBytes)
-    return bigIntValue, nil
+	// 将[]byte转换为big.Int
+	bigIntValue := new(big.Int).SetBytes(decodedBytes)
+	return bigIntValue, nil
 }
 
-// 删除sIdList中的特定元素
+// RemoveElement 删除sIdList中的特定元素
 func RemoveElement(slice []string, target string) []string {
 	for i, v := range slice {
 		if v == target {
@@ -210,4 +137,39 @@ func RemoveElement(slice []string, target string) []string {
 		}
 	}
 	return slice
+}
+
+// WriteResult 将结果写入CSV文件
+func WriteResult(filePath string, headers []string, data [][]string) error {
+	// 创建文件，如果文件所在的目录不存在则创建
+	dir := filepath.Dir(filePath)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		os.MkdirAll(dir, 0755)
+	}
+
+	// 创建文件
+	file, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	// 写入表头
+	if err := writer.Write(headers); err != nil {
+		fmt.Println("Error writing headers:", err)
+		return err
+	}
+
+	// 写入数据
+	for _, record := range data {
+		if err := writer.Write(record); err != nil {
+			fmt.Println("Error writing data:", err)
+			return err
+		}
+	}
+
+	return nil
 }

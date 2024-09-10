@@ -12,6 +12,8 @@ import (
 	"math/big"
 	mrand "math/rand"
 	"os"
+	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/bits-and-blooms/bloom/v3"
@@ -126,14 +128,14 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 	// 获取MongoDB数据库
 	plaintextDB := odxt.PlaintextDB
-
 	defer plaintextDB.Client().Disconnect(context.Background())
 
 	// 初始化
 	uploadList := make([]UpdatePayload, UploadListMaxLength)
 	encryptTimeList := make([]time.Duration, 0)
-	cipherNum := 0
-	var encryptTimeTotal time.Duration
+	keywordList := make([]string, 0)
+	volumeList := make([]int, 0)
+	clientStorageUpdateBytes := make([]int, 0)
 
 	// 从MongoDB数据库中获取名为"id_keywords"的集合
 	collection := plaintextDB.Collection("id_keywords")
@@ -171,12 +173,18 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 		}
 		ids = removeDuplicates(ids)
 		keyword := keywordId["k"].(string)
+
 		encryptTime, keywordCipher, err := odxt.Encrypt(keyword, ids, 1)
 		if err != nil {
 			log.Fatal(err)
 		}
+
 		uploadList = append(uploadList, keywordCipher...)
 		encryptTimeList = append(encryptTimeList, encryptTime)
+		keywordList = append(keywordList, keyword)
+		volumeList = append(volumeList, len(keywordCipher))
+		clientStorageUpdateBytes = append(clientStorageUpdateBytes, CalculateUpdatePayloadSize(keywordCipher))
+
 
 		// 如果上传列表的长度达到最大限制， 则将其写入数据库
 		if len(uploadList) >= UploadListMaxLength {
@@ -189,11 +197,6 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 			// 清空上传列表
 			uploadList = make([]UpdatePayload, UploadListMaxLength)
 		}
-		cipherNum += len(keywordCipher)
-		encryptTimeTotal += encryptTime
-		fmt.Println("Encrypting", keyword, "with", len(ids), "ids")
-		fmt.Println("Total number of ciphertexts:", len(keywordCipher))
-		fmt.Println("Total time for encrypting", encryptTime)
 	}
 
 	// 如果上传列表不为空， 则将其写入数据库
@@ -205,35 +208,25 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 		}
 	}
 
-	// 写入加密时间
-	err = WriteEncryptTime(encryptTimeList, "encryptTime.txt")
+	// 设置结果文件的路径和名称
+	resultpath := filepath.Join("result", "Addition", "ODXT", fmt.Sprintf("%s_%s.csv", dbName, time.Now().Format("2006-01-02_15-04-05")))
+
+	// 定义结果表头
+	resultHeader := []string{"keyword", "volume", "addTime", "storageUpdateBytes"}
+
+	// 将结果数据整理成表格形式
+	resultData := make([][]string, len(keywordList))
+	for i, keyword := range keywordList {
+		resultData[i] = []string{keyword, strconv.Itoa(volumeList[i]), encryptTimeList[i].String(), strconv.Itoa(clientStorageUpdateBytes[i])}
+	}
+
+	// 将结果写入文件
+	err = util.WriteResult(resultpath, resultHeader, resultData)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	fmt.Println("Total number of ciphertexts:", cipherNum)
-	fmt.Println("Total time for encrypting", encryptTimeTotal)
 }
 
-func WriteEncryptTime(encryptTimeList []time.Duration, fileName string) error {
-	// 创建或打开文件
-	file, err := os.Create(fileName)
-	if err != nil {
-		fmt.Println("Error creating file:", err)
-		return err
-	}
-	defer file.Close()
-
-	// 将时间逐个写入文件
-	for _, encryptTime := range encryptTimeList {
-		_, err := file.WriteString(encryptTime.String() + "\n")
-		if err != nil {
-			fmt.Println("Error writing time:", err)
-			return err
-		}
-	}
-	return nil
-}
 
 func (odxt *ODXT) Encrypt(keyword string, ids []string, operation int) (time.Duration, []UpdatePayload, error) {
 	kt, kx, ky, kz := odxt.Keys[0], odxt.Keys[1], odxt.Keys[2], odxt.Keys[3]
@@ -319,7 +312,24 @@ func (odxt *ODXT) SearchPhase(q []string, tableName string) {
 	decryptTime := time.Since(start)
 
 	clientTime := trapdoorTime + decryptTime
-	
+
+	// 设置结果文件的路径和名称
+	resultpath := filepath.Join("result", "Search", "ODXT", fmt.Sprintf("%s_%s.csv", tableName, time.Now().Format("2006-01-02_15-04-05")))
+
+	// 定义结果表头
+	resultHeader := []string{"keyword", "clientSearchTime", "serverTime", "resultLength"}
+
+	// 将结果数据整理成表格形式
+	resultData := make([][]string, len(sIdList))
+	for i, sId := range sIdList {
+		resultData[i] = []string{keyword, strconv.Itoa(volumeList[i]), encryptTimeList[i].String(), strconv.Itoa(clientStorageUpdateBytes[i])}
+	}
+
+	// 将结果写入文件
+	err = util.WriteResult(resultpath, resultHeader, resultData)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 }
 
@@ -423,6 +433,7 @@ func (odxt *ODXT) Trapdoor(q []string) ([]string, [][]string) {
 	return stokenList, xtokenList
 }
 
+// Decrypt 解密
 func (odxt *ODXT) Decrypt(q []string, sEOpList []util.SEOp) ([]string, error) {
 	kt := odxt.Keys[0]
 	counter, w1, st := 1000000, q[0], odxt.UpdateCnt
@@ -477,4 +488,13 @@ func removeDuplicates(intSlice []string) []string {
 
 	// 转换为切片
 	return stringSet.ToSlice()
+}
+
+// CalculateUpdatePayloadSize 计算[]UpdatePayload的字节大小
+func CalculateUpdatePayloadSize(payloads []UpdatePayload) int {
+	size := 0
+	for _, payload := range payloads {
+		size += len(payload.Address) + len(payload.Val) + len(payload.Alpha)
+	}
+	return size
 }
