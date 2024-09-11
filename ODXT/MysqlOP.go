@@ -26,11 +26,11 @@ func MySQLSetup(tableName string) (*sql.DB, error) {
 	}
 
 	// 删除表
-	err = DropTable(db, tableName)
-	if err != nil {
-		log.Fatal(err)
-		return nil, err
-	}
+	// err = DropTable(db, tableName)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// 	return nil, err
+	// }
 
 	// 创建数据表tableName;如果表不存在则创建，如果表存在则不创建
 	// 表的结构为：id, address, value, alpha, created_at

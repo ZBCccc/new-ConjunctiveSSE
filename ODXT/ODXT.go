@@ -80,7 +80,7 @@ func ReadKeys(fileName string) [4][]byte {
 	return keys
 }
 
-func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
+func (odxt *ODXT) DBSetup(dbName string, randomKey bool, loadXSet bool) error {
 	if randomKey {
 		// 生成4个32字节长度的随机私钥
 		keyLen := 32
@@ -105,7 +105,11 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 	odxt.p, _ = new(big.Int).SetString("69445180235231407255137142482031499329548634082242122837872648805446522657159", 10)
 
 	// 初始化 XSet
-	odxt.XSet = bloom.NewWithEstimates(1000000, 0.01) // 可以存储100万个元素,错误率为1%
+	if loadXSet {
+		odxt.XSet, _ = LoadBloomFilterFromFile("./benchmark/ODXT/XSet.bin")
+	} else {
+		odxt.XSet = bloom.NewWithEstimates(1000000, 0.01) // 可以存储100万个元素,错误率为1%
+	}
 
 	// 连接MongoDB
 	var err error
@@ -259,26 +263,26 @@ func (odxt *ODXT) Encrypt(keyword string, ids []string, operation int) (time.Dur
 		}
 
 		// val = PRF(kt, w||wc||1) xor (id||op)
-		val, _ := util.PrfF(kt, append(wWc, big.NewInt(int64(1)).Bytes()...))
+		val, err := util.PrfF(kt, append(wWc, big.NewInt(int64(1)).Bytes()...))
 		if err != nil {
 			log.Println(err)
 			return time.Second, nil, err
 		}
-		val, _ = util.BytesXORWithOp(val, []byte(id), operation)
+		val, err = util.BytesXORWithOp(val, []byte(id), operation)
 		if err != nil {
 			log.Println(err)
 			return time.Second, nil, err
 		}
 
 		// alpha = Fp(ky, id||op) * Fp(kz, w||wc)^-1
-		alpha, alpha1, _ := util.ComputeAlpha(ky, kz, []byte(id), operation, wWc, p, g)
+		alpha, alpha1, err := util.ComputeAlpha(ky, kz, []byte(id), operation, wWc, p, g)
 		if err != nil {
 			log.Println(err)
 			return time.Second, nil, err
 		}
 
 		// xtag = g^{Fp(Kx, w)*Fp(Ky, id||op)} mod p
-		C, _ := util.PrfFp(kx, []byte(keyword), p, g)
+		C, err := util.PrfFp(kx, []byte(keyword), p, g)
 		if err != nil {
 			log.Println(err)
 			return time.Second, nil, err
@@ -341,6 +345,7 @@ func QueryKeywordsFromFile(fileName string) [][]string {
 }
 
 func (odxt *ODXT) SearchPhase(tableName, fileName string) {
+	fileName = "./benchmark/ODXT/" + fileName
 	keywordsList := QueryKeywordsFromFile(fileName)
 
 	// 初始化结果列表
@@ -369,10 +374,10 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 		resultLengthList = append(resultLengthList, len(sIdList))
 	}
 
-	// 	// 设置结果文件的路径和名称
+	// 设置结果文件的路径和名称
 	resultpath := filepath.Join("result", "Search", "ODXT", fmt.Sprintf("%s_%s.csv", tableName, time.Now().Format("2006-01-02_15-04-05")))
 
-	// 	// 定义结果表头
+	// 定义结果表头
 	resultHeader := []string{"keyword", "clientSearchTime", "serverTime", "resultLength"}
 
 	// 将结果数据整理成表格形式

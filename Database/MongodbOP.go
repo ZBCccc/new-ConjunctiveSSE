@@ -69,27 +69,34 @@ func GenQuerydataFromDB(dbName, tableName string, numPairs int) error {
 		keywordsList = append(keywordsList, keyword)
 	}
 
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-
 	// 从keywordsList中随机选择2个关键词，共形成numPairs对
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	keywordsPair := make([][]string, numPairs)
 	for i := 0; i < numPairs; i++ {
+		// 创建一个新的切片来避免重复
+		shuffledKeywords := make([]string, len(keywordsList))
+		copy(shuffledKeywords, keywordsList)
+		
 		// 随机选择两个不同的关键词
-		r.Shuffle(len(keywordsList), func(i, j int) {
-			keywordsList[i], keywordsList[j] = keywordsList[j], keywordsList[i]
+		r.Shuffle(len(shuffledKeywords), func(i, j int) {
+			shuffledKeywords[i], shuffledKeywords[j] = shuffledKeywords[j], shuffledKeywords[i]
 		})
-		keywordsPair[i] = keywordsList[:2]
+		keywordsPair[i] = shuffledKeywords[:2]
 	}
 	util.WriteResultToFile("keywords_2.txt", keywordsPair)
 
 	// 从keywordsList中随机选择6个关键词，共形成numPairs对
 	keywordsSix := make([][]string, numPairs)
 	for i := 0; i < numPairs; i++ {
+		// 创建一个新的切片来避免重复
+		shuffledKeywords := make([]string, len(keywordsList))
+		copy(shuffledKeywords, keywordsList)
+		
 		// 随机选择两个不同的关键词
-		r.Shuffle(len(keywordsList), func(i, j int) {
-			keywordsList[i], keywordsList[j] = keywordsList[j], keywordsList[i]
+		r.Shuffle(len(shuffledKeywords), func(i, j int) {
+			shuffledKeywords[i], shuffledKeywords[j] = shuffledKeywords[j], shuffledKeywords[i]
 		})
-		keywordsSix[i] = keywordsList[:6]
+		keywordsSix[i] = shuffledKeywords[:6]
 	}
 	util.WriteResultToFile("keywords_6.txt", keywordsSix)
 
