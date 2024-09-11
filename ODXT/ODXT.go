@@ -374,10 +374,10 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	}
 
 // 	// 设置结果文件的路径和名称
-// 	resultpath := filepath.Join("result", "Search", "ODXT", fmt.Sprintf("%s_%s.csv", tableName, time.Now().Format("2006-01-02_15-04-05")))
+	resultpath := filepath.Join("result", "Search", "ODXT", fmt.Sprintf("%s_%s.csv", tableName, time.Now().Format("2006-01-02_15-04-05")))
 
 // 	// 定义结果表头
-// 	resultHeader := []string{"keyword", "clientSearchTime", "serverTime", "resultLength"}
+	resultHeader := []string{"keyword", "clientSearchTime", "serverTime", "resultLength"}
 
 	// 将结果数据整理成表格形式
 	resultData := make([][]string, len(resultList))
