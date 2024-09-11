@@ -1,8 +1,8 @@
 package ODXT
 
 import (
-	"ConjunctiveSSE/util"
 	"ConjunctiveSSE/Database"
+	"ConjunctiveSSE/util"
 	"bufio"
 	"context"
 	"crypto/rand"
@@ -26,8 +26,6 @@ import (
 
 	"go.mongodb.org/mongo-driver/mongo"
 )
-
-//var PlaintextDB *mongo.Collection
 
 const (
 	MaxConnection       = 100
@@ -187,7 +185,6 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 		volumeList = append(volumeList, len(keywordCipher))
 		clientStorageUpdateBytes = append(clientStorageUpdateBytes, CalculateUpdatePayloadSize(keywordCipher))
 
-
 		// 如果上传列表的长度达到最大限制， 则将其写入数据库
 		if len(uploadList) >= UploadListMaxLength {
 			// 写入文件
@@ -235,7 +232,6 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 		log.Fatal(err)
 	}
 }
-
 
 func (odxt *ODXT) Encrypt(keyword string, ids []string, operation int) (time.Duration, []UpdatePayload, error) {
 	kt, kx, ky, kz := odxt.Keys[0], odxt.Keys[1], odxt.Keys[2], odxt.Keys[3]
@@ -356,7 +352,7 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	// 循环搜索
 	for _, keywords := range keywordsList {
 		trapdoorTime, serverTime, sEOpList := odxt.Search(keywords, tableName)
-	
+
 		// 解密密文获得最终结果
 		start := time.Now()
 		sIdList, err := odxt.Decrypt(keywords, sEOpList)
@@ -373,10 +369,10 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 		resultLengthList = append(resultLengthList, len(sIdList))
 	}
 
-// 	// 设置结果文件的路径和名称
+	// 	// 设置结果文件的路径和名称
 	resultpath := filepath.Join("result", "Search", "ODXT", fmt.Sprintf("%s_%s.csv", tableName, time.Now().Format("2006-01-02_15-04-05")))
 
-// 	// 定义结果表头
+	// 	// 定义结果表头
 	resultHeader := []string{"keyword", "clientSearchTime", "serverTime", "resultLength"}
 
 	// 将结果数据整理成表格形式
@@ -580,17 +576,17 @@ func SaveBloomFilterToFile(filter *bloom.BloomFilter, filename string) error {
 
 // 从文件加载 Bloom filter
 func LoadBloomFilterFromFile(filename string) (*bloom.BloomFilter, error) {
-    file, err := os.Open(filename)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
 
-    filter := bloom.NewWithEstimates(1000000, 0.01) // 创建一个新的 Bloom filter，使用整数参数
-    _, err = filter.ReadFrom(file)
-    if err != nil {
-        return nil, err
-    }
+	filter := bloom.NewWithEstimates(1000000, 0.01) // 创建一个新的 Bloom filter，使用整数参数
+	_, err = filter.ReadFrom(file)
+	if err != nil {
+		return nil, err
+	}
 
 	return filter, nil
 }
