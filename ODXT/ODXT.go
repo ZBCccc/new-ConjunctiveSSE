@@ -2,6 +2,7 @@ package ODXT
 
 import (
 	"ConjunctiveSSE/util"
+	"ConjunctiveSSE/Database"
 	"bufio"
 	"context"
 	"crypto/rand"
@@ -110,7 +111,7 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 
 	// 连接MongoDB
 	var err error
-	odxt.PlaintextDB, err = MongoDBSetup(dbName)
+	odxt.PlaintextDB, err = Database.MongoDBSetup(dbName)
 	if err != nil {
 		log.Fatal(err)
 		return err
@@ -229,7 +230,7 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 	}
 
 	// 将结果写入文件
-	err = util.WriteResult(resultpath, resultHeader, resultData)
+	err = util.WriteResultToCSV(resultpath, resultHeader, resultData)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -307,7 +308,7 @@ func (odxt *ODXT) DeletionPhaseWithSearch(del_rate int) {
 
 }
 
-func (odxt *ODXT) SearchPhase(q []string, tableName string) {
+func QueryKeywordsFromFile(fileName string) [][]string {
 	// 读取待搜索的连接关键词文件，文件格式为：
 	// 每一行都是关键词的集合，关键词之间用#隔开
 	// 例如：
@@ -315,7 +316,7 @@ func (odxt *ODXT) SearchPhase(q []string, tableName string) {
 	// 关键词4#关键词5
 	// 关键词6
 	// 读取待搜索的关键词文件
-	file, err := os.Open("search_keywords.txt")
+	file, err := os.Open(fileName)
 	if err != nil {
 		log.Fatal("无法打开文件:", err)
 	}
@@ -339,19 +340,38 @@ func (odxt *ODXT) SearchPhase(q []string, tableName string) {
 	for i, keywords := range keywordsList {
 		fmt.Printf("第%d组关键词: %v\n", i+1, keywords)
 	}
+
+	return keywordsList
+}
+
+func (odxt *ODXT) SearchPhase(tableName, fileName string) {
+	keywordsList := QueryKeywordsFromFile(fileName)
+
+	// 初始化结果列表
+	resultList := make([][]string, 0)
+	clientSearchTime := make([]time.Duration, 0)
+	serverTimeList := make([]time.Duration, 0)
+	resultLengthList := make([]int, 0)
+
+	// 循环搜索
+	for _, keywords := range keywordsList {
+		trapdoorTime, serverTime, sEOpList := odxt.Search(keywords, tableName)
 	
-	// 搜索
-	trapdoorTime, serverTime, sEOpList := odxt.Search(q, tableName)
+		// 解密密文获得最终结果
+		start := time.Now()
+		sIdList, err := odxt.Decrypt(keywords, sEOpList)
+		if err != nil {
+			log.Fatal(err)
+		}
+		decryptTime := time.Since(start)
+		clientTime := trapdoorTime + decryptTime
 
-	// 解密密文获得最终结果
-	start := time.Now()
-	sIdList, err := odxt.Decrypt(q, sEOpList)
-	if err != nil {
-		log.Fatal(err)
+		// 将结果添加到结果列表
+		resultList = append(resultList, sIdList)
+		clientSearchTime = append(clientSearchTime, clientTime)
+		serverTimeList = append(serverTimeList, serverTime)
+		resultLengthList = append(resultLengthList, len(sIdList))
 	}
-	decryptTime := time.Since(start)
-
-	clientTime := trapdoorTime + decryptTime
 
 	// 设置结果文件的路径和名称
 	resultpath := filepath.Join("result", "Search", "ODXT", fmt.Sprintf("%s_%s.csv", tableName, time.Now().Format("2006-01-02_15-04-05")))
@@ -360,17 +380,16 @@ func (odxt *ODXT) SearchPhase(q []string, tableName string) {
 	resultHeader := []string{"keyword", "clientSearchTime", "serverTime", "resultLength"}
 
 	// 将结果数据整理成表格形式
-	resultData := make([][]string, len(sIdList))
-	for i, sId := range sIdList {
-		resultData[i] = []string{sId, strconv.Itoa(volumeList[i]), encryptTimeList[i].String(), strconv.Itoa(clientStorageUpdateBytes[i])}
+	resultData := make([][]string, len(resultList))
+	for i, keywords := range keywordsList {
+		resultData[i] = []string{strings.Join(keywords, "#"), clientSearchTime[i].String(), serverTimeList[i].String(), strconv.Itoa(resultLengthList[i])}
 	}
 
 	// 将结果写入文件
-	err = util.WriteResult(resultpath, resultHeader, resultData)
+	err := util.WriteResultToCSV(resultpath, resultHeader, resultData)
 	if err != nil {
 		log.Fatal(err)
 	}
-
 }
 
 // Search 搜索，生成search token，并查询SQL数据库
