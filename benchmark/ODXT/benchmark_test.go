@@ -1,6 +1,7 @@
 package main
 
 import (
+	"ConjunctiveSSE/Database"
 	"bytes"
 	"crypto"
 	"crypto/hmac"
@@ -31,5 +32,12 @@ func TestEncode(t *testing.T) {
 
 	if !bytes.Equal(cipherText, decodeCipherText) {
 		t.Fatal("Decode the cipherText failed")
+	}
+}
+
+func TestGenerateKeywords(t *testing.T) {
+	err := Database.GenQuerydataFromDB("Crime_USENIX_REV", "id_keywords", 10000)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
