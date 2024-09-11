@@ -2,6 +2,7 @@ package ODXT
 
 import (
 	"ConjunctiveSSE/util"
+	"ConjunctiveSSE/Database"
 	"bufio"
 	"context"
 	"crypto/rand"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bits-and-blooms/bloom/v3"
@@ -109,7 +111,7 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 
 	// 连接MongoDB
 	var err error
-	odxt.PlaintextDB, err = MongoDBSetup(dbName)
+	odxt.PlaintextDB, err = Database.MongoDBSetup(dbName)
 	if err != nil {
 		log.Fatal(err)
 		return err
@@ -208,8 +210,15 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 		}
 	}
 
+	saveTime := time.Now()
+	// 保存 XSet 到文件
+	err = SaveBloomFilterToFile(odxt.XSet, filepath.Join("result", "Update", "ODXT", fmt.Sprintf("%s_%s_XSet.bin", dbName, saveTime.Format("2006-01-02_15-04-05"))))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// 设置结果文件的路径和名称
-	resultpath := filepath.Join("result", "Addition", "ODXT", fmt.Sprintf("%s_%s.csv", dbName, time.Now().Format("2006-01-02_15-04-05")))
+	resultpath := filepath.Join("result", "Addition", "ODXT", fmt.Sprintf("%s_%s.csv", dbName, saveTime.Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
 	resultHeader := []string{"keyword", "volume", "addTime", "storageUpdateBytes"}
@@ -221,7 +230,7 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 	}
 
 	// 将结果写入文件
-	err = util.WriteResult(resultpath, resultHeader, resultData)
+	err = util.WriteResultToCSV(resultpath, resultHeader, resultData)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -299,19 +308,70 @@ func (odxt *ODXT) DeletionPhaseWithSearch(del_rate int) {
 
 }
 
-// func (odxt *ODXT) SearchPhase(q []string, tableName string) {
-// 	// 搜索
-// 	trapdoorTime, serverTime, sEOpList := odxt.Search(q, tableName)
+func QueryKeywordsFromFile(fileName string) [][]string {
+	// 读取待搜索的连接关键词文件，文件格式为：
+	// 每一行都是关键词的集合，关键词之间用#隔开
+	// 例如：
+	// 关键词1#关键词2#关键词3
+	// 关键词4#关键词5
+	// 关键词6
+	// 读取待搜索的关键词文件
+	file, err := os.Open(fileName)
+	if err != nil {
+		log.Fatal("无法打开文件:", err)
+	}
+	defer file.Close()
 
-// 	// 解密密文获得最终结果
-// 	start := time.Now()
-// 	sIdList, err := odxt.Decrypt(q, sEOpList)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	decryptTime := time.Since(start)
+	scanner := bufio.NewScanner(file)
+	var keywordsList [][]string
 
-// 	clientTime := trapdoorTime + decryptTime
+	for scanner.Scan() {
+		line := scanner.Text()
+		keywords := strings.Split(line, "#")
+		keywordsList = append(keywordsList, keywords)
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Fatal("读取文件时出错:", err)
+	}
+
+	// 打印读取到的关键词列表（可选）
+	fmt.Println("待搜索的关键词列表:")
+	for i, keywords := range keywordsList {
+		fmt.Printf("第%d组关键词: %v\n", i+1, keywords)
+	}
+
+	return keywordsList
+}
+
+func (odxt *ODXT) SearchPhase(tableName, fileName string) {
+	keywordsList := QueryKeywordsFromFile(fileName)
+
+	// 初始化结果列表
+	resultList := make([][]string, 0)
+	clientSearchTime := make([]time.Duration, 0)
+	serverTimeList := make([]time.Duration, 0)
+	resultLengthList := make([]int, 0)
+
+	// 循环搜索
+	for _, keywords := range keywordsList {
+		trapdoorTime, serverTime, sEOpList := odxt.Search(keywords, tableName)
+	
+		// 解密密文获得最终结果
+		start := time.Now()
+		sIdList, err := odxt.Decrypt(keywords, sEOpList)
+		if err != nil {
+			log.Fatal(err)
+		}
+		decryptTime := time.Since(start)
+		clientTime := trapdoorTime + decryptTime
+
+		// 将结果添加到结果列表
+		resultList = append(resultList, sIdList)
+		clientSearchTime = append(clientSearchTime, clientTime)
+		serverTimeList = append(serverTimeList, serverTime)
+		resultLengthList = append(resultLengthList, len(sIdList))
+	}
 
 // 	// 设置结果文件的路径和名称
 // 	resultpath := filepath.Join("result", "Search", "ODXT", fmt.Sprintf("%s_%s.csv", tableName, time.Now().Format("2006-01-02_15-04-05")))
@@ -319,19 +379,18 @@ func (odxt *ODXT) DeletionPhaseWithSearch(del_rate int) {
 // 	// 定义结果表头
 // 	resultHeader := []string{"keyword", "clientSearchTime", "serverTime", "resultLength"}
 
-// 	// 将结果数据整理成表格形式
-// 	resultData := make([][]string, len(sIdList))
-// 	for i, sId := range sIdList {
-// 		resultData[i] = []string{keyword, strconv.Itoa(volumeList[i]), encryptTimeList[i].String(), strconv.Itoa(clientStorageUpdateBytes[i])}
-// 	}
+	// 将结果数据整理成表格形式
+	resultData := make([][]string, len(resultList))
+	for i, keywords := range keywordsList {
+		resultData[i] = []string{strings.Join(keywords, "#"), clientSearchTime[i].String(), serverTimeList[i].String(), strconv.Itoa(resultLengthList[i])}
+	}
 
-// 	// 将结果写入文件
-// 	err = util.WriteResult(resultpath, resultHeader, resultData)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-
-// }
+	// 将结果写入文件
+	err := util.WriteResultToCSV(resultpath, resultHeader, resultData)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
 
 // Search 搜索，生成search token，并查询SQL数据库
 func (odxt *ODXT) Search(q []string, tableName string) (time.Duration, time.Duration, []util.SEOp) {
@@ -497,4 +556,41 @@ func CalculateUpdatePayloadSize(payloads []UpdatePayload) int {
 		size += len(payload.Address) + len(payload.Val) + len(payload.Alpha)
 	}
 	return size
+}
+
+// 保存 Bloom filter 到文件
+func SaveBloomFilterToFile(filter *bloom.BloomFilter, filename string) error {
+	// 创建文件，如果所在目录不存在，则先创建目录，再创建文件
+	dir := filepath.Dir(filename)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		os.MkdirAll(dir, 0755)
+	}
+
+	// 创建文件
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// 将 Bloom filter 写入文件
+	_, err = filter.WriteTo(file)
+	return err
+}
+
+// 从文件加载 Bloom filter
+func LoadBloomFilterFromFile(filename string) (*bloom.BloomFilter, error) {
+    file, err := os.Open(filename)
+    if err != nil {
+        return nil, err
+    }
+    defer file.Close()
+
+    filter := bloom.NewWithEstimates(1000000, 0.01) // 创建一个新的 Bloom filter，使用整数参数
+    _, err = filter.ReadFrom(file)
+    if err != nil {
+        return nil, err
+    }
+
+	return filter, nil
 }

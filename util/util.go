@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type Operation int
@@ -140,7 +141,7 @@ func RemoveElement(slice []string, target string) []string {
 }
 
 // WriteResult 将结果写入CSV文件
-func WriteResult(filePath string, headers []string, data [][]string) error {
+func WriteResultToCSV(filePath string, headers []string, data [][]string) error {
 	// 创建文件，如果文件所在的目录不存在则创建
 	dir := filepath.Dir(filePath)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
@@ -171,5 +172,32 @@ func WriteResult(filePath string, headers []string, data [][]string) error {
 		}
 	}
 
+	return nil
+}
+
+// WriteResultToFile 将结果写入文件
+func WriteResultToFile(filePath string, data [][]string) error {
+	// 创建文件，如果文件所在的目录不存在则创建
+	dir := filepath.Dir(filePath)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		os.MkdirAll(dir, 0755)
+	}
+
+	// 创建文件
+	file, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	for _, record := range data {
+		_, err = file.WriteString(strings.Join(record, "#") + "\n")
+		if err != nil {
+			fmt.Println("Error writing data:", err)
+			return err
+		}
+	}
+
+	fmt.Println("Data written to file:", filePath)
 	return nil
 }
