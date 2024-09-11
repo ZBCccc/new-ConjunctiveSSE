@@ -94,7 +94,7 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 		}
 	} else {
 		// 读取私钥
-		odxt.Keys = ReadKeys("keys.txt")
+		odxt.Keys = ReadKeys("./benchmark/ODXT/keys.txt")
 	}
 
 	// 初始化 UpdateCnt
@@ -131,7 +131,7 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 	defer plaintextDB.Client().Disconnect(context.Background())
 
 	// 初始化
-	uploadList := make([]UpdatePayload, UploadListMaxLength)
+	uploadList := make([]UpdatePayload, 0)
 	encryptTimeList := make([]time.Duration, 0)
 	keywordList := make([]string, 0)
 	volumeList := make([]int, 0)
@@ -195,7 +195,7 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 			}
 
 			// 清空上传列表
-			uploadList = make([]UpdatePayload, UploadListMaxLength)
+			uploadList = make([]UpdatePayload, 0)
 		}
 	}
 
@@ -299,39 +299,39 @@ func (odxt *ODXT) DeletionPhaseWithSearch(del_rate int) {
 
 }
 
-func (odxt *ODXT) SearchPhase(q []string, tableName string) {
-	// 搜索
-	trapdoorTime, serverTime, sEOpList := odxt.Search(q, tableName)
+// func (odxt *ODXT) SearchPhase(q []string, tableName string) {
+// 	// 搜索
+// 	trapdoorTime, serverTime, sEOpList := odxt.Search(q, tableName)
 
-	// 解密密文获得最终结果
-	start := time.Now()
-	sIdList, err := odxt.Decrypt(q, sEOpList)
-	if err != nil {
-		log.Fatal(err)
-	}
-	decryptTime := time.Since(start)
+// 	// 解密密文获得最终结果
+// 	start := time.Now()
+// 	sIdList, err := odxt.Decrypt(q, sEOpList)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	decryptTime := time.Since(start)
 
-	clientTime := trapdoorTime + decryptTime
+// 	clientTime := trapdoorTime + decryptTime
 
-	// 设置结果文件的路径和名称
-	resultpath := filepath.Join("result", "Search", "ODXT", fmt.Sprintf("%s_%s.csv", tableName, time.Now().Format("2006-01-02_15-04-05")))
+// 	// 设置结果文件的路径和名称
+// 	resultpath := filepath.Join("result", "Search", "ODXT", fmt.Sprintf("%s_%s.csv", tableName, time.Now().Format("2006-01-02_15-04-05")))
 
-	// 定义结果表头
-	resultHeader := []string{"keyword", "clientSearchTime", "serverTime", "resultLength"}
+// 	// 定义结果表头
+// 	resultHeader := []string{"keyword", "clientSearchTime", "serverTime", "resultLength"}
 
-	// 将结果数据整理成表格形式
-	resultData := make([][]string, len(sIdList))
-	for i, sId := range sIdList {
-		resultData[i] = []string{keyword, strconv.Itoa(volumeList[i]), encryptTimeList[i].String(), strconv.Itoa(clientStorageUpdateBytes[i])}
-	}
+// 	// 将结果数据整理成表格形式
+// 	resultData := make([][]string, len(sIdList))
+// 	for i, sId := range sIdList {
+// 		resultData[i] = []string{keyword, strconv.Itoa(volumeList[i]), encryptTimeList[i].String(), strconv.Itoa(clientStorageUpdateBytes[i])}
+// 	}
 
-	// 将结果写入文件
-	err = util.WriteResult(resultpath, resultHeader, resultData)
-	if err != nil {
-		log.Fatal(err)
-	}
+// 	// 将结果写入文件
+// 	err = util.WriteResult(resultpath, resultHeader, resultData)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
 
-}
+// }
 
 // Search 搜索，生成search token，并查询SQL数据库
 func (odxt *ODXT) Search(q []string, tableName string) (time.Duration, time.Duration, []util.SEOp) {
