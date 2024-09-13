@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
@@ -16,6 +17,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bits-and-blooms/bloom/v3"
@@ -80,7 +82,7 @@ func ReadKeys(fileName string) [4][]byte {
 	return keys
 }
 
-func (odxt *ODXT) DBSetup(dbName string, randomKey bool, loadXSet bool) error {
+func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 	if randomKey {
 		// 生成4个32字节长度的随机私钥
 		keyLen := 32
@@ -104,23 +106,60 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool, loadXSet bool) error {
 	odxt.g = big.NewInt(65537)
 	odxt.p, _ = new(big.Int).SetString("69445180235231407255137142482031499329548634082242122837872648805446522657159", 10)
 
-	// 初始化 XSet
-	if loadXSet {
-		odxt.XSet, _ = LoadBloomFilterFromFile("./benchmark/ODXT/XSet.bin")
-	} else {
-		odxt.XSet = bloom.NewWithEstimates(1000000, 0.01) // 可以存储100万个元素,错误率为1%
+	// 初始化 XSet 和 MySQLDB
+	var err error
+	odxt.XSet = bloom.NewWithEstimates(1000000, 0.01) // 可以存储100万个元素,错误率为1%
+
+	// 连接MySQL数据库
+	odxt.MySQLDB, err = MySQLSetup(dbName)
+	if err != nil {
+		log.Fatal(err)
+		return err
 	}
 
 	// 连接MongoDB
-	var err error
 	odxt.PlaintextDB, err = Database.MongoDBSetup(dbName)
 	if err != nil {
 		log.Fatal(err)
 		return err
 	}
 
-	// 连接MySQL数据库
-	odxt.MySQLDB, err = MySQLSetup(dbName)
+	return nil
+}
+
+func (odxt *ODXT) DBSetupFromFiles(dbName string, xSetPath string, updateCntPath string) error {
+
+	// 读取私钥
+	odxt.Keys = ReadKeys("./benchmark/ODXT/keys.txt")
+
+	// 读取 UpdateCnt
+	var err error
+	odxt.UpdateCnt, err = LoadUpdateCntFromFile(updateCntPath)
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+
+	// 初始化 g 和 p
+	odxt.g = big.NewInt(65537)
+	odxt.p, _ = new(big.Int).SetString("69445180235231407255137142482031499329548634082242122837872648805446522657159", 10)
+
+	// 读取 XSet 和 MySQLDB
+	
+	odxt.XSet, err = LoadBloomFilterFromFile(xSetPath)
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+
+	odxt.MySQLDB, err = LoadMySQLDB()
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+
+	// 连接MongoDB
+	odxt.PlaintextDB, err = Database.MongoDBSetup(dbName)
 	if err != nil {
 		log.Fatal(err)
 		return err
@@ -135,11 +174,11 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 	defer plaintextDB.Client().Disconnect(context.Background())
 
 	// 初始化
-	uploadList := make([]UpdatePayload, 0)
-	encryptTimeList := make([]time.Duration, 0)
-	keywordList := make([]string, 0)
-	volumeList := make([]int, 0)
-	clientStorageUpdateBytes := make([]int, 0)
+	uploadList := make([]UpdatePayload, 0, UploadListMaxLength+1)
+	encryptTimeList := make([]time.Duration, 0, 1000000)
+	keywordList := make([]string, 0, 1000000)
+	volumeList := make([]int, 0, 1000000)
+	clientStorageUpdateBytes := make([]int, 0, 1000000)
 
 	// 从MongoDB数据库中获取名为"id_keywords"的集合
 	collection := plaintextDB.Collection("id_keywords")
@@ -198,7 +237,7 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 			}
 
 			// 清空上传列表
-			uploadList = make([]UpdatePayload, 0)
+			uploadList = make([]UpdatePayload, 0, UploadListMaxLength+1)
 		}
 	}
 
@@ -218,8 +257,14 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 		log.Fatal(err)
 	}
 
+	// 保存 odxt.UpdateCnt 到文件
+	err = SaveUpdateCntToFile(odxt.UpdateCnt, filepath.Join("result", "Update", "ODXT", fmt.Sprintf("%s_%s_UpdateCnt.json", dbName, saveTime.Format("2006-01-02_15-04-05"))))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// 设置结果文件的路径和名称
-	resultpath := filepath.Join("result", "Addition", "ODXT", fmt.Sprintf("%s_%s.csv", dbName, saveTime.Format("2006-01-02_15-04-05")))
+	resultpath := filepath.Join("result", "Update", "ODXT", fmt.Sprintf("%s_%s.csv", dbName, saveTime.Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
 	resultHeader := []string{"keyword", "volume", "addTime", "storageUpdateBytes"}
@@ -242,64 +287,76 @@ func (odxt *ODXT) Encrypt(keyword string, ids []string, operation int) (time.Dur
 	p, g := odxt.p, odxt.g
 
 	var encryptedTime time.Duration
-	keywordsCipher := make([]UpdatePayload, 0)
+	keywordsCipher := make([]UpdatePayload, len(ids))
+	var mu sync.Mutex // 保护对 UpdateCnt 和 encryptedTime 的并发写入
 
 	_, ok := odxt.UpdateCnt[keyword]
 	if !ok {
 		odxt.UpdateCnt[keyword] = 0
 	}
 
-	for _, id := range ids {
-		start := time.Now()
+	var wg sync.WaitGroup
+	for i, id := range ids {
+		wg.Add(1)
+		go func(i int, id string) {
+			defer wg.Done()
+			start := time.Now()
 
-		odxt.UpdateCnt[keyword]++
+			mu.Lock()
+			odxt.UpdateCnt[keyword]++
+			wWc := append([]byte(keyword), big.NewInt(int64(odxt.UpdateCnt[keyword])).Bytes()...)
+			mu.Unlock()
 
-		// address = PRF(kt, w||wc||0)
-		wWc := append([]byte(keyword), big.NewInt(int64(odxt.UpdateCnt[keyword])).Bytes()...)
-		address, err := util.PrfF(kt, append(wWc, big.NewInt(int64(0)).Bytes()...))
-		if err != nil {
-			log.Println(err)
-			return time.Second, nil, err
-		}
+			// address = PRF(kt, w||wc||0)
+			address, err := util.PrfF(kt, append(wWc, big.NewInt(int64(0)).Bytes()...))
+			if err != nil {
+				log.Println(err)
+				return
+			}
 
-		// val = PRF(kt, w||wc||1) xor (id||op)
-		val, err := util.PrfF(kt, append(wWc, big.NewInt(int64(1)).Bytes()...))
-		if err != nil {
-			log.Println(err)
-			return time.Second, nil, err
-		}
-		val, err = util.BytesXORWithOp(val, []byte(id), operation)
-		if err != nil {
-			log.Println(err)
-			return time.Second, nil, err
-		}
+			// val = PRF(kt, w||wc||1) xor (id||op)
+			val, err := util.PrfF(kt, append(wWc, big.NewInt(int64(1)).Bytes()...))
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			val, err = util.BytesXORWithOp(val, []byte(id), operation)
+			if err != nil {
+				log.Println(err)
+				return
+			}
 
-		// alpha = Fp(ky, id||op) * Fp(kz, w||wc)^-1
-		alpha, alpha1, err := util.ComputeAlpha(ky, kz, []byte(id), operation, wWc, p, g)
-		if err != nil {
-			log.Println(err)
-			return time.Second, nil, err
-		}
+			// alpha = Fp(ky, id||op) * Fp(kz, w||wc)^-1
+			alpha, alpha1, err := util.ComputeAlpha(ky, kz, []byte(id), operation, wWc, p, g)
+			if err != nil {
+				log.Println(err)
+				return
+			}
 
-		// xtag = g^{Fp(Kx, w)*Fp(Ky, id||op)} mod p
-		C, err := util.PrfFp(kx, []byte(keyword), p, g)
-		if err != nil {
-			log.Println(err)
-			return time.Second, nil, err
-		}
-		A := new(big.Int).Mul(C, alpha1)
-		xtag := new(big.Int).Exp(g, A, p)
+			// xtag = g^{Fp(Kx, w)*Fp(Ky, id||op)} mod p
+			C, err := util.PrfFp(kx, []byte(keyword), p, g)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			A := new(big.Int).Mul(C, alpha1)
+			xtag := new(big.Int).Exp(g, A, p)
 
-		encryptedTime += time.Since(start)
+			mu.Lock()
+			encryptedTime += time.Since(start)
+			mu.Unlock()
 
-		// Encoded the ciphertext
-		base64Address := base64.StdEncoding.EncodeToString(address)
-		base64Val := base64.StdEncoding.EncodeToString(val)
-		base64Alpha := base64.StdEncoding.EncodeToString(alpha.Bytes())
+			// Encoded the ciphertext
+			base64Address := base64.StdEncoding.EncodeToString(address)
+			base64Val := base64.StdEncoding.EncodeToString(val)
+			base64Alpha := base64.StdEncoding.EncodeToString(alpha.Bytes())
 
-		keywordsCipher = append(keywordsCipher, UpdatePayload{base64Address, base64Val, base64Alpha})
-		odxt.XSet.Add(xtag.Bytes())
+			keywordsCipher[i] = UpdatePayload{base64Address, base64Val, base64Alpha}
+			odxt.XSet.Add(xtag.Bytes())
+		}(i, id)
 	}
+
+	wg.Wait()
 
 	return encryptedTime, keywordsCipher, nil
 }
@@ -336,10 +393,10 @@ func QueryKeywordsFromFile(fileName string) [][]string {
 	}
 
 	// 打印读取到的关键词列表（可选）
-	fmt.Println("待搜索的关键词列表:")
-	for i, keywords := range keywordsList {
-		fmt.Printf("第%d组关键词: %v\n", i+1, keywords)
-	}
+	// fmt.Println("待搜索的关键词列表:")
+	// for i, keywords := range keywordsList {
+	// 	fmt.Printf("第%d组关键词: %v\n", i+1, keywords)
+	// }
 
 	return keywordsList
 }
@@ -349,10 +406,10 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	keywordsList := QueryKeywordsFromFile(fileName)
 
 	// 初始化结果列表
-	resultList := make([][]string, 0)
-	clientSearchTime := make([]time.Duration, 0)
-	serverTimeList := make([]time.Duration, 0)
-	resultLengthList := make([]int, 0)
+	resultList := make([][]string, 0, len(keywordsList)+1)
+	clientSearchTime := make([]time.Duration, 0, len(keywordsList)+1)
+	serverTimeList := make([]time.Duration, 0, len(keywordsList)+1)
+	resultLengthList := make([]int, 0, len(keywordsList)+1)
 
 	// 循环搜索
 	for _, keywords := range keywordsList {
@@ -404,41 +461,51 @@ func (odxt *ODXT) Search(q []string, tableName string) (time.Duration, time.Dura
 	// 查询SQL数据库
 	tmpResult, err := SearchStoken(odxt.MySQLDB, stokenList, tableName)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	sEOpList := make([]util.SEOp, len(stokenList))
 
+	var wg sync.WaitGroup
+	var mu sync.Mutex // 保护对 sEOpList 的并发写入
+
 	// 搜索数据
-	var cnt int
 	for j, value := range tmpResult {
-		cnt = 1
+		wg.Add(1)
+		go func(j int, value SearchPayload) {
+			defer wg.Done()
+			cnt := 1
 
-		// 遍历 xtokenList
-		for _, xtoken := range xtokenList[j] {
-			// 类型转换
-			xtokenInt, err := util.Base64ToBigInt(xtoken)
-			if err != nil {
-				log.Fatal(err)
-			}
-			alpha, err := util.Base64ToBigInt(value.Alpha)
-			if err != nil {
-				log.Fatal(err)
+			// 遍历 xtokenList
+			for _, xtoken := range xtokenList[j] {
+				// 类型转换
+				xtokenInt, err := util.Base64ToBigInt(xtoken)
+				if err != nil {
+					log.Println(err)
+				}
+				alpha, err := util.Base64ToBigInt(value.Alpha)
+				if err != nil {
+					log.Println(err)
+				}
+
+				// 判断 xtag 是否匹配
+				xtag := new(big.Int).Exp(xtokenInt, alpha, odxt.p)
+				if odxt.XSet.Test(xtag.Bytes()) {
+					cnt++
+				}
 			}
 
-			// 判断 xtag 是否匹配
-			xtag := new(big.Int).Exp(xtokenInt, alpha, odxt.p)
-			if odxt.XSet.Test(xtag.Bytes()) {
-				cnt++
+			mu.Lock()
+			sEOpList[j] = util.SEOp{
+				J:    j + 1,
+				Sval: value.Value,
+				Cnt:  cnt,
 			}
-		}
-
-		sEOpList[j] = util.SEOp{
-			J:    j + 1,
-			Sval: value.Value,
-			Cnt:  cnt,
-		}
+			mu.Unlock()
+		}(j, value)
 	}
+
+	wg.Wait()
 	serverTime := time.Since(start)
 
 	return trapdoorTime, serverTime, sEOpList
@@ -465,30 +532,38 @@ func (odxt *ODXT) Trapdoor(q []string) ([]string, [][]string) {
 	for i := range xtokenList {
 		xtokenList[i] = make([]string, len(q)-1)
 	}
+
+	var wg sync.WaitGroup
 	for j := 0; j < counter; j++ {
-		saddr, err := util.PrfF(kt, append(append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), big.NewInt(int64(0)).Bytes()...))
-		if err != nil {
-			fmt.Println(err)
-		}
-		stokenList[j] = base64.StdEncoding.EncodeToString(saddr)
-
-		i := 0
-		for _, wi := range q {
-			if wi == w1 {
-				continue
+		wg.Add(1)
+		go func(j int) {
+			defer wg.Done()
+			saddr, err := util.PrfF(kt, append(append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), big.NewInt(int64(0)).Bytes()...))
+			if err != nil {
+				fmt.Println(err)
 			}
-			xtoken1, _ := util.PrfFp(kx, []byte(wi), odxt.p, odxt.g)
-			xtoken2, _ := util.PrfFp(kz, append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), odxt.p, odxt.g)
-			xtoken := new(big.Int).Exp(odxt.g, new(big.Int).Mul(xtoken1, xtoken2), odxt.p)
-			xtokenList[j][i] = base64.StdEncoding.EncodeToString(xtoken.Bytes())
-			i++
-		}
+			stokenList[j] = base64.StdEncoding.EncodeToString(saddr)
 
-		// 打乱切片中的元素
-		mrand.Shuffle(len(xtokenList[j]), func(i, j int) {
-			xtokenList[j][i], xtokenList[j][j] = xtokenList[j][j], xtokenList[j][i]
-		})
+			i := 0
+			for _, wi := range q {
+				if wi == w1 {
+					continue
+				}
+				xtoken1, _ := util.PrfFp(kx, []byte(wi), odxt.p, odxt.g)
+				xtoken2, _ := util.PrfFp(kz, append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), odxt.p, odxt.g)
+				xtoken := new(big.Int).Exp(odxt.g, new(big.Int).Mul(xtoken1, xtoken2), odxt.p)
+				xtokenList[j][i] = base64.StdEncoding.EncodeToString(xtoken.Bytes())
+				i++
+			}
+
+			// 打乱切片中的元素
+			mrand.Shuffle(len(xtokenList[j]), func(i, k int) {
+				xtokenList[j][i], xtokenList[j][k] = xtokenList[j][k], xtokenList[j][i]
+			})
+		}(j)
 	}
+
+	wg.Wait()
 
 	return stokenList, xtokenList
 }
@@ -594,4 +669,43 @@ func LoadBloomFilterFromFile(filename string) (*bloom.BloomFilter, error) {
 	}
 
 	return filter, nil
+}
+
+// 保存 UpdateCnt 到文件
+func SaveUpdateCntToFile(updateCnt map[string]int, filename string) error {
+	// 创建文件，如果所在目录不存在，则先创建目录，再创建文件
+	dir := filepath.Dir(filename)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		os.MkdirAll(dir, 0755)
+	}
+
+	// 创建文件
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// 将 UpdateCnt 写入Json文件
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(updateCnt)
+}
+
+// 从文件加载 UpdateCnt
+func LoadUpdateCntFromFile(filename string) (map[string]int, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	// 从文件加载 UpdateCnt
+	updateCnt := make(map[string]int)
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&updateCnt)
+	if err != nil {
+		return nil, err
+	}
+	return updateCnt, nil
 }

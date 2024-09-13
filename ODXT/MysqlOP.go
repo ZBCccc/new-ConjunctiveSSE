@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -26,11 +27,11 @@ func MySQLSetup(tableName string) (*sql.DB, error) {
 	}
 
 	// 删除表
-	// err = DropTable(db, tableName)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// 	return nil, err
-	// }
+	err = DropTable(db, tableName)
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
 
 	// 创建数据表tableName;如果表不存在则创建，如果表存在则不创建
 	// 表的结构为：id, address, value, alpha, created_at
@@ -96,15 +97,32 @@ func SearchStoken(db *sql.DB, address []string, tableName string) ([]SearchPaylo
 	querySQL := "SELECT value, alpha FROM " + tableName + " WHERE address = ?"
 
 	// 查询数据库
-	var value, alpha string
+	var wg sync.WaitGroup
 	result := make([]SearchPayload, len(address))
+	errs := make([]error, len(address)) // 用于存储错误
+
 	for index, addr := range address {
-		err := db.QueryRow(querySQL, addr).Scan(&value, &alpha)
+		wg.Add(1)
+		go func(i int, addr string) {
+			defer wg.Done()
+			var value, alpha string
+			err := db.QueryRow(querySQL, addr).Scan(&value, &alpha)
+			if err != nil {
+				errs[i] = err
+				return
+			}
+			result[i] = SearchPayload{Value: value, Alpha: alpha}
+		}(index, addr)
+	}
+
+	wg.Wait()
+
+	// 检查是否有错误
+	for _, err := range errs {
 		if err != nil {
 			log.Fatal(err)
 			return nil, err
 		}
-		result[index] = SearchPayload{Value: value, Alpha: alpha}
 	}
 
 	return result, nil
@@ -186,4 +204,20 @@ func GetRowCountAfterDate(db *sql.DB, tableName string, date time.Time) (int, er
 		return 0, fmt.Errorf("获取表 %s 在 %v 之后的行数时出错: %v", tableName, date, err)
 	}
 	return count, nil
+}
+
+func LoadMySQLDB() (*sql.DB, error) {
+	db, err := sql.Open("mysql", "root:123456@tcp(localhost:3306)/ODXT")
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
+
+	err = db.Ping()
+	if err != nil {
+		log.Fatal("Cannot connect to database:", err)
+		return nil, err
+	}
+
+	return db, nil
 }
