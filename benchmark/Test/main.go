@@ -36,9 +36,9 @@ func main() {
 			defer wg.Done()
 			xtoken1, _ := util.PrfFp([]byte(kx), []byte(w1), p, g)
 			xtoken2, _ := util.PrfFp([]byte(kz), append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), p, g)
-			_ = xtoken1 // 使用xtoken1避免报错
-			_ = xtoken2 // 使用xtoken2避免报错
-			// _ = new(big.Int).Exp(g, new(big.Int).Mul(xtoken1, xtoken2), p)
+			// _ = xtoken1 // 使用xtoken1避免报错
+			// _ = xtoken2 // 使用xtoken2避免报错
+			_ = new(big.Int).Exp(g, new(big.Int).Mul(xtoken1, xtoken2), p)
 		}()
 	}
 	wg.Wait()

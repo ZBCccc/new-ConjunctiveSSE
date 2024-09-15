@@ -92,6 +92,43 @@ type SearchPayload struct {
 }
 
 // SearchStoken searches the stokenList in the MySQL database
+// func SearchStoken(db *sql.DB, addresses []string, tableName string) ([]SearchPayload, error) {
+// 	// 构建查询语句
+// 	querySQL := fmt.Sprintf("SELECT value, alpha FROM %s WHERE address IN (?)", tableName)
+
+// 	// 使用 sqlx.In 来处理大量参数
+// 	query, args, err := sqlx.In(querySQL, addresses)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	// 重新绑定参数
+// 	query = sqlx.Rebind(sqlx.QUESTION, query)
+
+// 	// 执行查询
+// 	rows, err := db.Query(query, args...)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	defer rows.Close()
+
+// 	// 处理查询结果
+// 	var result []SearchPayload
+// 	var value, alpha string
+// 	for rows.Next() {
+// 		if err := rows.Scan(&value, &alpha); err != nil {
+// 			return nil, err
+// 		}
+// 		result = append(result, SearchPayload{Value: value, Alpha: alpha})
+// 	}
+
+// 	if err := rows.Err(); err != nil {
+// 		return nil, err
+// 	}
+
+// 	return result, nil
+// }
+
 func SearchStoken(db *sql.DB, address []string, tableName string) ([]SearchPayload, error) {
 	// 准备查询语句，查询数据库中的value和alpha
 	querySQL := "SELECT value, alpha FROM " + tableName + " WHERE address = ?"
@@ -178,9 +215,9 @@ func DropTable(db *sql.DB, tableName string) error {
 	query := fmt.Sprintf("DROP TABLE IF EXISTS %s", tableName)
 	_, err := db.Exec(query)
 	if err != nil {
-        return fmt.Errorf("删除表 %s 时出错: %v", tableName, err)
-    }
-    fmt.Printf("表 %s 已成功删除\n", tableName)
+		return fmt.Errorf("删除表 %s 时出错: %v", tableName, err)
+	}
+	fmt.Printf("表 %s 已成功删除\n", tableName)
 	return nil
 }
 
