@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"log"
 	"math/big"
-	mrand "math/rand"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -145,7 +144,7 @@ func (odxt *ODXT) DBSetupFromFiles(dbName string, xSetPath string, updateCntPath
 	odxt.p, _ = new(big.Int).SetString("69445180235231407255137142482031499329548634082242122837872648805446522657159", 10)
 
 	// 读取 XSet 和 MySQLDB
-	
+
 	odxt.XSet, err = LoadBloomFilterFromFile(xSetPath)
 	if err != nil {
 		log.Fatal(err)
@@ -288,75 +287,62 @@ func (odxt *ODXT) Encrypt(keyword string, ids []string, operation int) (time.Dur
 
 	var encryptedTime time.Duration
 	keywordsCipher := make([]UpdatePayload, len(ids))
-	var mu sync.Mutex // 保护对 UpdateCnt 和 encryptedTime 的并发写入
 
 	_, ok := odxt.UpdateCnt[keyword]
 	if !ok {
 		odxt.UpdateCnt[keyword] = 0
 	}
 
-	var wg sync.WaitGroup
 	for i, id := range ids {
-		wg.Add(1)
-		go func(i int, id string) {
-			defer wg.Done()
-			start := time.Now()
+		start := time.Now()
+		odxt.UpdateCnt[keyword]++
+		wWc := append([]byte(keyword), big.NewInt(int64(odxt.UpdateCnt[keyword])).Bytes()...)
 
-			mu.Lock()
-			odxt.UpdateCnt[keyword]++
-			wWc := append([]byte(keyword), big.NewInt(int64(odxt.UpdateCnt[keyword])).Bytes()...)
-			mu.Unlock()
+		// address = PRF(kt, w||wc||0)
+		address, err := util.PrfF(kt, append(wWc, big.NewInt(int64(0)).Bytes()...))
+		if err != nil {
+			log.Println(err)
+		}
 
-			// address = PRF(kt, w||wc||0)
-			address, err := util.PrfF(kt, append(wWc, big.NewInt(int64(0)).Bytes()...))
-			if err != nil {
-				log.Println(err)
-				return
-			}
+		// val = PRF(kt, w||wc||1) xor (id||op)
+		val, err := util.PrfF(kt, append(wWc, big.NewInt(int64(1)).Bytes()...))
+		if err != nil {
+			log.Println(err)
+			return encryptedTime, nil, err
+		}
+		val, err = util.BytesXORWithOp(val, []byte(id), operation)
+		if err != nil {
+			log.Println(err)
+			return encryptedTime, nil, err
+		}
 
-			// val = PRF(kt, w||wc||1) xor (id||op)
-			val, err := util.PrfF(kt, append(wWc, big.NewInt(int64(1)).Bytes()...))
-			if err != nil {
-				log.Println(err)
-				return
-			}
-			val, err = util.BytesXORWithOp(val, []byte(id), operation)
-			if err != nil {
-				log.Println(err)
-				return
-			}
+		// alpha = Fp(ky, id||op) * Fp(kz, w||wc)^-1
+		alpha, alpha1, err := util.ComputeAlpha(ky, kz, []byte(id), operation, wWc, p, g)
+		if err != nil {
+			log.Println(err)
+			return encryptedTime, nil, err
+		}
 
-			// alpha = Fp(ky, id||op) * Fp(kz, w||wc)^-1
-			alpha, alpha1, err := util.ComputeAlpha(ky, kz, []byte(id), operation, wWc, p, g)
-			if err != nil {
-				log.Println(err)
-				return
-			}
+		// xtag = g^{Fp(Kx, w)*Fp(Ky, id||op)} mod p
+		C, err := util.PrfFp(kx, []byte(keyword), p, g)
+		if err != nil {
+			log.Println(err)
+			return encryptedTime, nil, err
+		}
+		A := new(big.Int).Mul(C, alpha1)
+		xtag := new(big.Int).Exp(g, A, p)
 
-			// xtag = g^{Fp(Kx, w)*Fp(Ky, id||op)} mod p
-			C, err := util.PrfFp(kx, []byte(keyword), p, g)
-			if err != nil {
-				log.Println(err)
-				return
-			}
-			A := new(big.Int).Mul(C, alpha1)
-			xtag := new(big.Int).Exp(g, A, p)
+		encryptedTime += time.Since(start)
 
-			mu.Lock()
-			encryptedTime += time.Since(start)
-			mu.Unlock()
+		// Encoded the ciphertext
+		base64Address := base64.StdEncoding.EncodeToString(address)
+		base64Val := base64.StdEncoding.EncodeToString(val)
+		base64Alpha := base64.StdEncoding.EncodeToString(alpha.Bytes())
 
-			// Encoded the ciphertext
-			base64Address := base64.StdEncoding.EncodeToString(address)
-			base64Val := base64.StdEncoding.EncodeToString(val)
-			base64Alpha := base64.StdEncoding.EncodeToString(alpha.Bytes())
+		keywordsCipher[i] = UpdatePayload{base64Address, base64Val, base64Alpha}
+		odxt.XSet.Add(xtag.Bytes())
 
-			keywordsCipher[i] = UpdatePayload{base64Address, base64Val, base64Alpha}
-			odxt.XSet.Add(xtag.Bytes())
-		}(i, id)
 	}
-
-	wg.Wait()
 
 	return encryptedTime, keywordsCipher, nil
 }
@@ -411,6 +397,12 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	serverTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
 
+	resultNum := 0
+	clientTimeTotal := time.Duration(0)
+	serverTimeTotal := time.Duration(0)
+	totalCipherNum := 0
+
+
 	// 循环搜索
 	for _, keywords := range keywordsList {
 		trapdoorTime, serverTime, sEOpList := odxt.Search(keywords, tableName)
@@ -429,6 +421,14 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 		clientSearchTime = append(clientSearchTime, clientTime)
 		serverTimeList = append(serverTimeList, serverTime)
 		resultLengthList = append(resultLengthList, len(sIdList))
+
+		// 打印信息
+		resultNum += len(sIdList)
+		clientTimeTotal += trapdoorTime
+		serverTimeTotal += serverTime
+		totalCipherNum += len(sEOpList)
+		fmt.Println("密文数量:", len(sEOpList), "结果数量：", resultNum, "客户端时间：", clientTimeTotal, "服务端时间：", serverTimeTotal)
+
 	}
 
 	// 设置结果文件的路径和名称
@@ -452,55 +452,70 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 
 // Search 搜索，生成search token，并查询SQL数据库
 func (odxt *ODXT) Search(q []string, tableName string) (time.Duration, time.Duration, []util.SEOp) {
-	start := time.Now()
 	// 生成陷门
-	stokenList, xtokenList := odxt.Trapdoor(q)
-	trapdoorTime := time.Since(start)
+	trapdoorTime, stokenList, xtokenList := odxt.Trapdoor(q)
+	// fmt.Println("len(stokenList):", len(stokenList), "len(xtokenList):", len(xtokenList))
 
-	start = time.Now()
 	// 查询SQL数据库
 	tmpResult, err := SearchStoken(odxt.MySQLDB, stokenList, tableName)
 	if err != nil {
 		log.Println(err)
 	}
 
+	// fmt.Println("len(tmpResult):", len(tmpResult))
+
 	sEOpList := make([]util.SEOp, len(stokenList))
 
+	start := time.Now()
 	var wg sync.WaitGroup
 	var mu sync.Mutex // 保护对 sEOpList 的并发写入
 
 	// 搜索数据
+	pool := make(chan struct{}, 200)
 	for j, value := range tmpResult {
 		wg.Add(1)
+		pool <- struct{}{}
 		go func(j int, value SearchPayload) {
 			defer wg.Done()
+			defer func() { <-pool }()
 			cnt := 1
 
 			// 遍历 xtokenList
+			var innerWg sync.WaitGroup
 			for _, xtoken := range xtokenList[j] {
-				// 类型转换
-				xtokenInt, err := util.Base64ToBigInt(xtoken)
-				if err != nil {
-					log.Println(err)
-				}
-				alpha, err := util.Base64ToBigInt(value.Alpha)
-				if err != nil {
-					log.Println(err)
-				}
+				innerWg.Add(1)
+				go func(xtoken string) {
+					defer innerWg.Done()
+					// 类型转换
+					xtokenInt, err := util.Base64ToBigInt(xtoken)
+					if err != nil {
+						log.Println(err)
+					}
+					alpha, err := util.Base64ToBigInt(value.Alpha)
+					if err != nil {
+						log.Println(err)
+					}
 
-				// 判断 xtag 是否匹配
-				xtag := new(big.Int).Exp(xtokenInt, alpha, odxt.p)
-				if odxt.XSet.Test(xtag.Bytes()) {
-					cnt++
-				}
+					// 判断 xtag 是否匹配
+					xtag := new(big.Int).Exp(xtokenInt, alpha, odxt.p)
+					if odxt.XSet.Test(xtag.Bytes()) {
+						mu.Lock()
+						cnt++
+						mu.Unlock()
+					}
+				}(xtoken)
 			}
+			innerWg.Wait()
 
-			mu.Lock()
-			sEOpList[j] = util.SEOp{
+			// 使用临时变量减少锁的使用
+			seOp := util.SEOp{
 				J:    j + 1,
 				Sval: value.Value,
 				Cnt:  cnt,
 			}
+  
+			mu.Lock()
+			sEOpList[j] = seOp
 			mu.Unlock()
 		}(j, value)
 	}
@@ -512,7 +527,7 @@ func (odxt *ODXT) Search(q []string, tableName string) (time.Duration, time.Dura
 }
 
 // Trapdoor 生成陷门
-func (odxt *ODXT) Trapdoor(q []string) ([]string, [][]string) {
+func (odxt *ODXT) Trapdoor(q []string) (time.Duration, []string, [][]string) {
 	// 读取密钥
 	kt, kx, kz := odxt.Keys[0], odxt.Keys[1], odxt.Keys[3]
 	counter, w1, st := 1000000, q[0], odxt.UpdateCnt
@@ -526,13 +541,17 @@ func (odxt *ODXT) Trapdoor(q []string) ([]string, [][]string) {
 		}
 	}
 
+	// 将q中的w1从q中删除
+	qWithoutW1 := util.RemoveElement(q, w1)
+
 	// 初始化stokenList和xtokenList
 	stokenList := make([]string, counter)
 	xtokenList := make([][]string, counter)
 	for i := range xtokenList {
-		xtokenList[i] = make([]string, len(q)-1)
+		xtokenList[i] = make([]string, len(qWithoutW1))
 	}
 
+	start := time.Now()
 	var wg sync.WaitGroup
 	for j := 0; j < counter; j++ {
 		wg.Add(1)
@@ -544,28 +563,30 @@ func (odxt *ODXT) Trapdoor(q []string) ([]string, [][]string) {
 			}
 			stokenList[j] = base64.StdEncoding.EncodeToString(saddr)
 
-			i := 0
-			for _, wi := range q {
-				if wi == w1 {
-					continue
-				}
-				xtoken1, _ := util.PrfFp(kx, []byte(wi), odxt.p, odxt.g)
-				xtoken2, _ := util.PrfFp(kz, append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), odxt.p, odxt.g)
-				xtoken := new(big.Int).Exp(odxt.g, new(big.Int).Mul(xtoken1, xtoken2), odxt.p)
-				xtokenList[j][i] = base64.StdEncoding.EncodeToString(xtoken.Bytes())
-				i++
+			var innerWg sync.WaitGroup
+			for i, wi := range qWithoutW1 {
+				innerWg.Add(1)
+				go func(i int, wi string) {
+					defer innerWg.Done()
+					xtoken1, _ := util.PrfFp(kx, []byte(wi), odxt.p, odxt.g)
+					xtoken2, _ := util.PrfFp(kz, append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), odxt.p, odxt.g)
+					xtoken := new(big.Int).Exp(odxt.g, new(big.Int).Mul(xtoken1, xtoken2), odxt.p)
+					xtokenList[j][i] = base64.StdEncoding.EncodeToString(xtoken.Bytes())
+				}(i, wi)
 			}
+			innerWg.Wait()
 
 			// 打乱切片中的元素
-			mrand.Shuffle(len(xtokenList[j]), func(i, k int) {
-				xtokenList[j][i], xtokenList[j][k] = xtokenList[j][k], xtokenList[j][i]
-			})
+			// mrand.Shuffle(len(xtokenList[j]), func(i, k int) {
+			// 	xtokenList[j][i], xtokenList[j][k] = xtokenList[j][k], xtokenList[j][i]
+			// })
 		}(j)
 	}
 
 	wg.Wait()
+	trapdoorTime := time.Since(start)
 
-	return stokenList, xtokenList
+	return trapdoorTime, stokenList, xtokenList
 }
 
 // Decrypt 解密
@@ -582,7 +603,7 @@ func (odxt *ODXT) Decrypt(q []string, sEOpList []util.SEOp) ([]string, error) {
 		}
 	}
 
-	sIdList := make([]string, 0)
+	sIdList := make([]string, 0, len(sEOpList))
 	for _, sEOp := range sEOpList {
 		j, sval, cnt := sEOp.J, sEOp.Sval, sEOp.Cnt
 		w1Andj := append(append([]byte(w1), big.NewInt(int64(j)).Bytes()...), big.NewInt(int64(1)).Bytes()...)
@@ -601,10 +622,11 @@ func (odxt *ODXT) Decrypt(q []string, sEOpList []util.SEOp) ([]string, error) {
 			id[i] = tmp[i] ^ val[i]
 		}
 		var op util.Operation = util.Operation(tmp[31] ^ val[31])
+		// fmt.Println("id:", base64.StdEncoding.EncodeToString(id), "op:", op, "cnt:", cnt)
 		if op == util.Add && cnt == len(q) {
 			sIdList = append(sIdList, base64.StdEncoding.EncodeToString(id))
 		} else if op == util.Del && cnt > 0 {
-			sIdList = util.RemoveElement(sIdList, base64.StdEncoding.EncodeToString(id))
+			sIdList = util.RemoveElementFromSlice(sIdList, base64.StdEncoding.EncodeToString(id))
 		}
 	}
 

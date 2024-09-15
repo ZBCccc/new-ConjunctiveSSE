@@ -6,6 +6,7 @@ require (
 	github.com/bits-and-blooms/bloom/v3 v3.7.0
 	github.com/deckarep/golang-set/v2 v2.6.0
 	github.com/go-sql-driver/mysql v1.8.1
+	github.com/jmoiron/sqlx v1.4.0
 	go.mongodb.org/mongo-driver v1.16.1
 )
 

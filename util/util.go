@@ -129,12 +129,21 @@ func Base64ToBigInt(base64Str string) (*big.Int, error) {
 	return bigIntValue, nil
 }
 
-// RemoveElement 删除sIdList中的特定元素
+// RemoveElement 删除列表中的特定元素，返回新的列表
 func RemoveElement(slice []string, target string) []string {
+	newSlice := []string{}
+	for _, v := range slice {
+		if v != target {
+			newSlice = append(newSlice, v)
+		}
+	}
+	return newSlice
+}
+
+func RemoveElementFromSlice(slice []string, target string) []string {
 	for i, v := range slice {
 		if v == target {
-			slice = append(slice[:i], slice[i+1:]...)
-			break
+			return append(slice[:i], slice[i+1:]...)
 		}
 	}
 	return slice
