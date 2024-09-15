@@ -1,10 +1,21 @@
 package util
 
+/*
+#cgo CFLAGS: -I/usr/local/opt/openssl/include
+#cgo LDFLAGS: -L/usr/local/opt/openssl/lib -lssl -lcrypto
+#include "crypto.h"
+#include <stdlib.h>
+*/
+import "C"
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"log"
 	"math/big"
@@ -26,6 +37,13 @@ type SEOp struct {
 	Cnt  int
 }
 
+func PrfF_C(key, message []byte) ([]byte, error) {
+	output := make([]byte, 32)
+	outputLen := C.int(len(output))
+	C.hmac_sha256(C.CString(key), C.int(len(key)), C.CString(message), C.int(len(message)), (*C.uchar)(unsafe.Pointer(&output[0])), (*C.int)(unsafe.Pointer(&outputLen)))
+	return output, nil
+}
+
 func PrfF(key, message []byte) ([]byte, error) {
 	// 生成一个HMAC对象
 	h := hmac.New(sha256.New, key)
@@ -38,12 +56,37 @@ func PrfF(key, message []byte) ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
+// PrfF_AES256_CTR 基于 AES-256 in counter mode 实现的 PRF 函数
+func PrfF_AES256_CTR(key, message []byte) ([]byte, error) {
+	if len(key) != 32 {
+		return nil, errors.New("key length must be 32 bytes for AES-256")
+	}
+
+	// 创建 AES-256 块加密器
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	// 初始化计数器（IV）
+	iv := make([]byte, aes.BlockSize)
+	binary.BigEndian.PutUint64(iv[aes.BlockSize-8:], 1)
+
+	// 创建 CTR 模式的流加密器
+	stream := cipher.NewCTR(block, iv)
+
+	// 加密消息
+	ciphertext := make([]byte, len(message))
+	stream.XORKeyStream(ciphertext, message)
+
+	return ciphertext, nil
+}
+
 func PrfFp(key, message []byte, p, g *big.Int) (*big.Int, error) {
 	// 生成一个HMAC对象
 	h := hmac.New(sha256.New, key)
 	// 写入消息
-	_, err := h.Write(message)
-	if err != nil {
+	if _, err := h.Write(message); err != nil {
 		return nil, err
 	}
 	// 计算消息的MAC
