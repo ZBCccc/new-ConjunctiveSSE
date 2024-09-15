@@ -411,6 +411,10 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	serverTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
 
+	resultNum := 0
+	clientTimeTotal := time.Duration(0)
+	serverTimeTotal := time.Duration(0)
+
 	// 循环搜索
 	for _, keywords := range keywordsList {
 		trapdoorTime, serverTime, sEOpList := odxt.Search(keywords, tableName)
@@ -429,6 +433,12 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 		clientSearchTime = append(clientSearchTime, clientTime)
 		serverTimeList = append(serverTimeList, serverTime)
 		resultLengthList = append(resultLengthList, len(sIdList))
+
+		// 打印信息
+		resultNum += len(sIdList)
+		clientTimeTotal += clientTime
+		serverTimeTotal += serverTime
+		fmt.Println("resultNum:", resultNum, "clientTimeTotal:", clientTimeTotal, "serverTimeTotal:", serverTimeTotal)
 	}
 
 	// 设置结果文件的路径和名称
@@ -457,6 +467,7 @@ func (odxt *ODXT) Search(q []string, tableName string) (time.Duration, time.Dura
 	stokenList, xtokenList := odxt.Trapdoor(q)
 	trapdoorTime := time.Since(start)
 
+	// fmt.Println("stokenList:", len(stokenList))
 	start = time.Now()
 	// 查询SQL数据库
 	tmpResult, err := SearchStoken(odxt.MySQLDB, stokenList, tableName)
