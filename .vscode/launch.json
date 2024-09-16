@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "C/C++ Runner: Debug Session",
+      "type": "lldb",
+      "request": "launch",
+      "args": [],
+      "cwd": "/Users/cyan/Documents/GitHub/ConjunctiveSSE/util",
+      "program": "/Users/cyan/Documents/GitHub/ConjunctiveSSE/util/build/Debug/outDebug"
+    }
+  ]
+}
