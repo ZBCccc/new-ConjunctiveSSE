@@ -44,12 +44,34 @@ func main() {
 	fmt.Println("PrfF_AES256_CTR time:", t2)
 
 	// 测试 xtoken
+	
 	start = time.Now()
 	for i := 0; i < 1000; i++ {
 		xtoken1, _ := util.PrfFp([]byte(kx), []byte(w1), p, g)
 		xtoken2, _ := util.PrfFp([]byte(kz), append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), p, g)
-		_ = new(big.Int).Exp(g, new(big.Int).Mul(xtoken1, xtoken2), p)
+		_ = xtoken1
+		_ = xtoken2
+		// _ = new(big.Int).Exp(g, new(big.Int).Mul(xtoken1, xtoken2), p)
 	}
 	t2 = time.Since(start)
 	fmt.Println("xtoken time:", t2)
+
+	// 测试g^ab
+	xtoken1, _ := util.PrfFp([]byte(kx), []byte(w1), p, g)
+	xtoken2, _ := util.PrfFp([]byte(kz), append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), p, g)
+	start = time.Now()
+	for i := 0; i < 1000; i++ {
+		_ = new(big.Int).Exp(g, new(big.Int).Mul(xtoken1, xtoken2), p)
+	}
+	t2 = time.Since(start)
+	fmt.Println("g^ab time:", t2)
+
+	// 测试ab
+	start = time.Now()
+	for i := 0; i < 1000; i++ {
+		ab := new(big.Int).Mul(xtoken1, xtoken2)
+		_ = ab
+	}
+	t2 = time.Since(start)
+	fmt.Println("ab time:", t2)
 }

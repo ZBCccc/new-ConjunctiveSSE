@@ -1,12 +1,4 @@
 package util
-
-/*
-#cgo CFLAGS: -I/usr/local/opt/openssl/include
-#cgo LDFLAGS: -L/usr/local/opt/openssl/lib -lssl -lcrypto
-#include "crypto.h"
-#include <stdlib.h>
-*/
-import "C"
 import (
 	"crypto/aes"
 	"crypto/cipher"
@@ -35,13 +27,6 @@ type SEOp struct {
 	J    int
 	Sval string
 	Cnt  int
-}
-
-func PrfF_C(key, message []byte) ([]byte, error) {
-	output := make([]byte, 32)
-	outputLen := C.int(len(output))
-	C.hmac_sha256(C.CString(key), C.int(len(key)), C.CString(message), C.int(len(message)), (*C.uchar)(unsafe.Pointer(&output[0])), (*C.int)(unsafe.Pointer(&outputLen)))
-	return output, nil
 }
 
 func PrfF(key, message []byte) ([]byte, error) {
@@ -100,14 +85,7 @@ func PrfFp(key, message []byte, p, g *big.Int) (*big.Int, error) {
 		res.Add(res, big.NewInt(1))
 	}
 
-	// Calculate ex = res % p
-	ex := new(big.Int).Mod(res, p)
-
-	// Calculate pow(g, ex, p-1)
-	pMinus1 := new(big.Int).Sub(p, big.NewInt(1))
-	result := new(big.Int).Exp(g, ex, pMinus1)
-
-	return result, nil
+	return res, nil
 }
 
 func ComputeAlpha(Ky, Kz, id []byte, op int, wWc []byte, p, g *big.Int) (*big.Int, *big.Int, error) {
