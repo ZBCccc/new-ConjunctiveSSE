@@ -402,7 +402,6 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	serverTimeTotal := time.Duration(0)
 	totalCipherNum := 0
 
-
 	// 循环搜索
 	for _, keywords := range keywordsList {
 		trapdoorTime, serverTime, sEOpList := odxt.Search(keywords, tableName)
@@ -513,7 +512,7 @@ func (odxt *ODXT) Search(q []string, tableName string) (time.Duration, time.Dura
 				Sval: value.Value,
 				Cnt:  cnt,
 			}
-  
+
 			mu.Lock()
 			sEOpList[j] = seOp
 			mu.Unlock()

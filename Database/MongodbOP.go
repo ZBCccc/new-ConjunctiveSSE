@@ -76,7 +76,7 @@ func GenQuerydataFromDB(dbName, tableName string, numPairs int) error {
 		// 创建一个新的切片来避免重复
 		shuffledKeywords := make([]string, len(keywordsList))
 		copy(shuffledKeywords, keywordsList)
-		
+
 		// 随机选择两个不同的关键词
 		r.Shuffle(len(shuffledKeywords), func(i, j int) {
 			shuffledKeywords[i], shuffledKeywords[j] = shuffledKeywords[j], shuffledKeywords[i]
@@ -91,7 +91,7 @@ func GenQuerydataFromDB(dbName, tableName string, numPairs int) error {
 		// 创建一个新的切片来避免重复
 		shuffledKeywords := make([]string, len(keywordsList))
 		copy(shuffledKeywords, keywordsList)
-		
+
 		// 随机选择两个不同的关键词
 		r.Shuffle(len(shuffledKeywords), func(i, j int) {
 			shuffledKeywords[i], shuffledKeywords[j] = shuffledKeywords[j], shuffledKeywords[i]

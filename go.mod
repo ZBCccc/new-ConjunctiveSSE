@@ -6,13 +6,13 @@ require (
 	github.com/bits-and-blooms/bloom/v3 v3.7.0
 	github.com/deckarep/golang-set/v2 v2.6.0
 	github.com/go-sql-driver/mysql v1.8.1
-	github.com/jmoiron/sqlx v1.4.0
 	go.mongodb.org/mongo-driver v1.16.1
 )
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/bits-and-blooms/bitset v1.14.2 // indirect
+	github.com/cloudflare/circl v1.4.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
