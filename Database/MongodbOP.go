@@ -1,7 +1,7 @@
 package Database
 
 import (
-	"ConjunctiveSSE/util"
+	"ConjunctiveSSE/utils"
 	"context"
 	"log"
 	"math/rand"
@@ -83,7 +83,7 @@ func GenQuerydataFromDB(dbName, tableName string, numPairs int) error {
 		})
 		keywordsPair[i] = shuffledKeywords[:2]
 	}
-	util.WriteResultToFile("keywords_2.txt", keywordsPair)
+	utils.WriteResultToFile("keywords_2.txt", keywordsPair)
 
 	// 从keywordsList中随机选择6个关键词，共形成numPairs对
 	keywordsSix := make([][]string, numPairs)
@@ -98,7 +98,7 @@ func GenQuerydataFromDB(dbName, tableName string, numPairs int) error {
 		})
 		keywordsSix[i] = shuffledKeywords[:6]
 	}
-	util.WriteResultToFile("keywords_6.txt", keywordsSix)
+	utils.WriteResultToFile("keywords_6.txt", keywordsSix)
 
 	return nil
 }

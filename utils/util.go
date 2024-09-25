@@ -1,6 +1,7 @@
-package util
+package utils
 
 import (
+	"bufio"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
@@ -232,4 +233,33 @@ func WriteResultToFile(filePath string, data [][]string) error {
 
 	fmt.Println("Data written to file:", filePath)
 	return nil
+}
+
+func HdxtReadKeys(filePath string) ([]byte, [3][]byte, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, [3][]byte{}, err
+	}
+	defer file.Close()
+
+	var mitraKey []byte
+	var auhmeKeys [3][]byte
+
+	scanner := bufio.NewScanner(file)
+
+	line := scanner.Text()
+	mitraKey, err = base64.StdEncoding.DecodeString(line)
+	if err != nil {
+		return nil, [3][]byte{}, err
+	}
+
+	for i := 0; i < 3; i++ {
+		line := scanner.Text()
+		auhmeKeys[i], err = base64.StdEncoding.DecodeString(line)
+		if err != nil {
+			return nil, [3][]byte{}, err
+		}
+	}
+
+	return mitraKey, auhmeKeys, nil
 }

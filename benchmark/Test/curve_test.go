@@ -1,7 +1,7 @@
 package main
 
 import (
-	"ConjunctiveSSE/util"
+	"ConjunctiveSSE/utils"
 	"golang.org/x/crypto/curve25519"
 	"math/big"
 	"sync"
@@ -19,8 +19,8 @@ func TestCurve(t *testing.T) {
 	p = p.Lsh(p, 255)            // 2^255
 	p = p.Sub(p, big.NewInt(19)) // 2^255 - 19
 	g := big.NewInt(9)
-	xtoken1, _ := util.PrfFp([]byte(kx), []byte(w1), p, g)
-	xtoken2, _ := util.PrfFp([]byte(kz), append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), p, g)
+	xtoken1, _ := utils.PrfFp([]byte(kx), []byte(w1), p, g)
+	xtoken2, _ := utils.PrfFp([]byte(kz), append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), p, g)
 	a := new(big.Int).Mul(xtoken1, xtoken2) // 这里假设 a 是已知的
 
 	// 计算 a * p
@@ -52,7 +52,7 @@ func TestHMACSHA256(t *testing.T) {
 	// 测试 HMAC-SHA256
 	start := time.Now()
 	for i := 0; i < 1000; i++ {
-		_, err := util.PrfF([]byte(keyword), message)
+		_, err := utils.PrfF([]byte(keyword), message)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -73,7 +73,7 @@ func TestAES256CTR(t *testing.T) {
 
 	start := time.Now()
 	for i := 0; i < 1000; i++ {
-		_, err := util.PrfF_AES256_CTR(key, message)
+		_, err := utils.PrfF_AES256_CTR(key, message)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -94,8 +94,8 @@ func TestXtoken(t *testing.T) {
 
 	start := time.Now()
 	for i := 0; i < 1000; i++ {
-		xtoken1, _ := util.PrfFp([]byte(kx), []byte(w1), p, g)
-		xtoken2, _ := util.PrfFp([]byte(kz), append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), p, g)
+		xtoken1, _ := utils.PrfFp([]byte(kx), []byte(w1), p, g)
+		xtoken2, _ := utils.PrfFp([]byte(kz), append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), p, g)
 		_ = xtoken1
 		_ = xtoken2
 	}
@@ -114,8 +114,8 @@ func TestGAB(t *testing.T) {
 	g := big.NewInt(9)
 
 	// 测试g^ab
-	xtoken1, _ := util.PrfFp([]byte(kx), []byte(w1), p, g)
-	xtoken2, _ := util.PrfFp([]byte(kz), append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), p, g)
+	xtoken1, _ := utils.PrfFp([]byte(kx), []byte(w1), p, g)
+	xtoken2, _ := utils.PrfFp([]byte(kz), append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), p, g)
 	a := new(big.Int).Mul(xtoken1, xtoken2) // 这里假设 a 是已知的
 
 	start := time.Now()
