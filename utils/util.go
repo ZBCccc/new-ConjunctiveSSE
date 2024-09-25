@@ -80,9 +80,10 @@ func PrfFp(key, message []byte, p, g *big.Int) (*big.Int, error) {
 
 	// Convert mac result to big.Int
 	res := new(big.Int).SetBytes(mac)
+	res = res.Mod(res, p)
 
 	// Check if res % p == 0 and add 1 if true
-	if new(big.Int).Mod(res, p).Cmp(big.NewInt(0)) == 0 {
+	if res.Cmp(big.NewInt(0)) == 0 {
 		res.Add(res, big.NewInt(1))
 	}
 
