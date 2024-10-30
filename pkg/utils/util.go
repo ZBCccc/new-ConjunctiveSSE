@@ -9,8 +9,11 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/bits-and-blooms/bloom/v3"
+	mapset "github.com/deckarep/golang-set/v2"
 	"log"
 	"math/big"
 	"os"
@@ -43,8 +46,8 @@ func PrfF(key, message []byte) ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
-// PrfF_AES256_CTR 基于 AES-256 in counter mode 实现的 PRF 函数
-func PrfF_AES256_CTR(key, message []byte) ([]byte, error) {
+// PrffAes256Ctr 基于 AES-256 in counter mode 实现的 PRF 函数
+func PrffAes256Ctr(key, message []byte) ([]byte, error) {
 	if len(key) != 32 {
 		return nil, errors.New("key length must be 32 bytes for AES-256")
 	}
@@ -108,10 +111,10 @@ func ComputeAlpha(Ky, Kz, id []byte, op int, wWc []byte, p, g *big.Int) (*big.In
 	}
 
 	// Calculate alpha = alpha1 * alpha2
-	pMinus1 := new(big.Int).Sub(p, big.NewInt(1))
-	alpha2 = new(big.Int).ModInverse(alpha2, pMinus1)
+	//pMinus1 := new(big.Int).Sub(p, big.NewInt(1))
+	alpha2 = new(big.Int).ModInverse(alpha2, p)
 
-	alpha := new(big.Int).Mul(alpha1, alpha2)
+	alpha := new(big.Int).Mod(new(big.Int).Mul(alpha1, alpha2), p)
 
 	return alpha, alpha1, nil
 }
@@ -173,7 +176,7 @@ func RemoveElementFromSlice(slice []string, target string) []string {
 	return slice
 }
 
-// WriteResult 将结果写入CSV文件
+// WriteResultToCSV 将结果写入CSV文件
 func WriteResultToCSV(filePath string, headers []string, data [][]string) error {
 	// 创建文件，如果文件所在的目录不存在则创建
 	dir := filepath.Dir(filePath)
@@ -213,7 +216,10 @@ func WriteResultToFile(filePath string, data [][]string) error {
 	// 创建文件，如果文件所在的目录不存在则创建
 	dir := filepath.Dir(filePath)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		os.MkdirAll(dir, 0755)
+		err := os.MkdirAll(dir, 0755)
+		if err != nil {
+			return err
+		}
 	}
 
 	// 创建文件
@@ -262,4 +268,99 @@ func HdxtReadKeys(filePath string) ([]byte, [3][]byte, error) {
 	}
 
 	return mitraKey, auhmeKeys, nil
+}
+
+// RemoveDuplicates 去除切片中的重复元素
+func RemoveDuplicates(intSlice []string) []string {
+	// 创建一个新的string集合
+	stringSet := mapset.NewSet[string]()
+
+	// 将切片中的元素添加到集合中
+	for _, v := range intSlice {
+		stringSet.Add(v)
+	}
+
+	// 转换为切片
+	return stringSet.ToSlice()
+}
+
+// SaveBloomFilterToFile 保存 Bloom filter 到文件
+func SaveBloomFilterToFile(filter *bloom.BloomFilter, filename string) error {
+	// 创建文件，如果所在目录不存在，则先创建目录，再创建文件
+	dir := filepath.Dir(filename)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		os.MkdirAll(dir, 0755)
+	}
+
+	// 创建文件
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// 将 Bloom filter 写入文件
+	_, err = filter.WriteTo(file)
+	return err
+}
+
+// LoadBloomFilterFromFile 从文件加载 Bloom filter
+func LoadBloomFilterFromFile(filename string) (*bloom.BloomFilter, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	filter := bloom.NewWithEstimates(1000000, 0.01) // 创建一个新的 Bloom filter，使用整数参数
+	_, err = filter.ReadFrom(file)
+	if err != nil {
+		return nil, err
+	}
+
+	return filter, nil
+}
+
+// SaveUpdateCntToFile 保存 UpdateCnt 到文件
+func SaveUpdateCntToFile(updateCnt map[string]int, filename string) error {
+	// 创建文件，如果所在目录不存在，则先创建目录，再创建文件
+	dir := filepath.Dir(filename)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		os.MkdirAll(dir, 0755)
+	}
+
+	// 创建文件
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// 将 UpdateCnt 写入Json文件
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(updateCnt)
+}
+
+// LoadUpdateCntFromFile 从文件加载 UpdateCnt
+func LoadUpdateCntFromFile(filename string) (map[string]int, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}(file)
+
+	// 从文件加载 UpdateCnt
+	updateCnt := make(map[string]int)
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&updateCnt)
+	if err != nil {
+		return nil, err
+	}
+	return updateCnt, nil
 }

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// 定义一个类型
+// Config 定义一个类型
 type Config struct {
 	Db               string `json:"db"`
 	Phase            string `json:"phase"`

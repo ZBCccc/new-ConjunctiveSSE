@@ -8,7 +8,6 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
@@ -21,7 +20,6 @@ import (
 	"time"
 
 	"github.com/bits-and-blooms/bloom/v3"
-	mapset "github.com/deckarep/golang-set/v2"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -30,7 +28,6 @@ import (
 )
 
 const (
-	MaxConnection       = 100
 	UploadListMaxLength = 200000
 )
 
@@ -101,7 +98,7 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 		}
 	} else {
 		// 读取私钥
-		odxt.Keys = ReadKeys("./benchmark/ODXT/keys.txt")
+		odxt.Keys = ReadKeys("./cmd/ODXT/keys.txt")
 	}
 
 	// 初始化 UpdateCnt
@@ -137,11 +134,11 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 func (odxt *ODXT) DBSetupFromFiles(dbName string, xSetPath string, updateCntPath string) error {
 
 	// 读取私钥
-	odxt.Keys = ReadKeys("./benchmark/ODXT/keys.txt")
+	odxt.Keys = ReadKeys("./cmd/ODXT/keys.txt")
 
 	// 读取 UpdateCnt
 	var err error
-	odxt.UpdateCnt, err = LoadUpdateCntFromFile(updateCntPath)
+	odxt.UpdateCnt, err = utils.LoadUpdateCntFromFile(updateCntPath)
 	if err != nil {
 		log.Fatal(err)
 		return err
@@ -154,7 +151,7 @@ func (odxt *ODXT) DBSetupFromFiles(dbName string, xSetPath string, updateCntPath
 	odxt.p = odxt.p.Sub(odxt.p, big.NewInt(19)) // 2^255-19
 
 	// 读取 XSet 和 MySQLDB
-	odxt.XSet, err = LoadBloomFilterFromFile(xSetPath)
+	odxt.XSet, err = utils.LoadBloomFilterFromFile(xSetPath)
 	if err != nil {
 		log.Fatal(err)
 		return err
@@ -222,7 +219,7 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 				log.Fatal("val_set contains non-string value")
 			}
 		}
-		ids = removeDuplicates(ids)
+		ids = utils.RemoveDuplicates(ids)
 		keyword := keywordId["k"].(string)
 
 		encryptTime, keywordCipher, err := odxt.Encrypt(keyword, ids, 1)
@@ -260,13 +257,13 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 
 	saveTime := time.Now()
 	// 保存 XSet 到文件
-	err = SaveBloomFilterToFile(odxt.XSet, filepath.Join("result", "Update", "ODXT", fmt.Sprintf("%s_%s_XSet.bin", dbName, saveTime.Format("2006-01-02_15-04-05"))))
+	err = utils.SaveBloomFilterToFile(odxt.XSet, filepath.Join("result", "Update", "ODXT", fmt.Sprintf("%s_%s_XSet.bin", dbName, saveTime.Format("2006-01-02_15-04-05"))))
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// 保存 odxt.UpdateCnt 到文件
-	err = SaveUpdateCntToFile(odxt.UpdateCnt, filepath.Join("result", "Update", "ODXT", fmt.Sprintf("%s_%s_UpdateCnt.json", dbName, saveTime.Format("2006-01-02_15-04-05"))))
+	err = utils.SaveUpdateCntToFile(odxt.UpdateCnt, filepath.Join("result", "Update", "ODXT", fmt.Sprintf("%s_%s_UpdateCnt.json", dbName, saveTime.Format("2006-01-02_15-04-05"))))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -338,7 +335,7 @@ func (odxt *ODXT) Encrypt(keyword string, ids []string, operation int) (time.Dur
 			log.Println(err)
 			return encryptedTime, nil, err
 		}
-		A := new(big.Int).Mul(C, alpha1)
+		A := new(big.Int).Mod(new(big.Int).Mul(C, alpha1), p)
 		xtag := new(big.Int).Exp(g, A, p)
 
 		encryptedTime += time.Since(start)
@@ -350,7 +347,6 @@ func (odxt *ODXT) Encrypt(keyword string, ids []string, operation int) (time.Dur
 
 		keywordsCipher[i] = UpdatePayload{base64Address, base64Val, base64Alpha}
 		odxt.XSet.Add(xtag.Bytes())
-
 	}
 
 	return encryptedTime, keywordsCipher, nil
@@ -387,17 +383,11 @@ func QueryKeywordsFromFile(fileName string) [][]string {
 		log.Fatal("读取文件时出错:", err)
 	}
 
-	// 打印读取到的关键词列表（可选）
-	// fmt.Println("待搜索的关键词列表:")
-	// for i, keywords := range keywordsList {
-	// 	fmt.Printf("第%d组关键词: %v\n", i+1, keywords)
-	// }
-
 	return keywordsList
 }
 
 func (odxt *ODXT) SearchPhase(tableName, fileName string) {
-	fileName = "./benchmark/ODXT/" + fileName
+	fileName = "./cmd/ODXT/" + fileName
 	keywordsList := QueryKeywordsFromFile(fileName)
 
 	// 初始化结果列表
@@ -411,6 +401,8 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	serverTimeTotal := time.Duration(0)
 	totalCipherNum := 0
 
+	// For Test
+	keywordsList = keywordsList[:5]
 	// 循环搜索
 	for _, keywords := range keywordsList {
 		trapdoorTime, serverTime, sEOpList := odxt.Search(keywords, tableName)
@@ -435,8 +427,6 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 		clientTimeTotal += trapdoorTime
 		serverTimeTotal += serverTime
 		totalCipherNum += len(sEOpList)
-		fmt.Println("密文数量:", len(sEOpList), "结果数量：", resultNum, "客户端时间：", clientTimeTotal, "服务端时间：", serverTimeTotal)
-
 	}
 
 	// 设置结果文件的路径和名称
@@ -496,10 +486,12 @@ func (odxt *ODXT) Search(q []string, tableName string) (time.Duration, time.Dura
 					defer innerWg.Done()
 					// 类型转换
 					xtokenInt, err := utils.Base64ToBigInt(xtoken)
+					xtokenInt = new(big.Int).Mod(xtokenInt, odxt.p)
 					if err != nil {
 						log.Println(err)
 					}
 					alpha, err := utils.Base64ToBigInt(value.Alpha)
+					alpha = new(big.Int).Mod(alpha, odxt.p)
 					if err != nil {
 						log.Println(err)
 					}
@@ -578,7 +570,8 @@ func (odxt *ODXT) Trapdoor(q []string) (time.Duration, []string, [][]string) {
 					defer innerWg.Done()
 					xtoken1, _ := utils.PrfFp(kx, []byte(wi), odxt.p, odxt.g)
 					xtoken2, _ := utils.PrfFp(kz, append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), odxt.p, odxt.g)
-					xtoken := new(big.Int).Exp(odxt.g, new(big.Int).Mul(xtoken1, xtoken2), odxt.p)
+					xtokenHead := new(big.Int).Mod(new(big.Int).Mul(xtoken1, xtoken2), odxt.p)
+					xtoken := new(big.Int).Exp(odxt.g, xtokenHead, odxt.p)
 					xtokenList[j][i] = base64.StdEncoding.EncodeToString(xtoken.Bytes())
 				}(i, wi)
 			}
@@ -640,20 +633,6 @@ func (odxt *ODXT) Decrypt(q []string, sEOpList []utils.SEOp) ([]string, error) {
 	return sIdList, nil
 }
 
-// removeDuplicates 去除切片中的重复元素
-func removeDuplicates(intSlice []string) []string {
-	// 创建一个新的string集合
-	stringSet := mapset.NewSet[string]()
-
-	// 将切片中的元素添加到集合中
-	for _, v := range intSlice {
-		stringSet.Add(v)
-	}
-
-	// 转换为切片
-	return stringSet.ToSlice()
-}
-
 // CalculateUpdatePayloadSize 计算[]UpdatePayload的字节大小
 func CalculateUpdatePayloadSize(payloads []UpdatePayload) int {
 	size := 0
@@ -661,85 +640,4 @@ func CalculateUpdatePayloadSize(payloads []UpdatePayload) int {
 		size += len(payload.Address) + len(payload.Val) + len(payload.Alpha)
 	}
 	return size
-}
-
-// SaveBloomFilterToFile 保存 Bloom filter 到文件
-func SaveBloomFilterToFile(filter *bloom.BloomFilter, filename string) error {
-	// 创建文件，如果所在目录不存在，则先创建目录，再创建文件
-	dir := filepath.Dir(filename)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		os.MkdirAll(dir, 0755)
-	}
-
-	// 创建文件
-	file, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// 将 Bloom filter 写入文件
-	_, err = filter.WriteTo(file)
-	return err
-}
-
-// LoadBloomFilterFromFile 从文件加载 Bloom filter
-func LoadBloomFilterFromFile(filename string) (*bloom.BloomFilter, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	filter := bloom.NewWithEstimates(1000000, 0.01) // 创建一个新的 Bloom filter，使用整数参数
-	_, err = filter.ReadFrom(file)
-	if err != nil {
-		return nil, err
-	}
-
-	return filter, nil
-}
-
-// SaveUpdateCntToFile 保存 UpdateCnt 到文件
-func SaveUpdateCntToFile(updateCnt map[string]int, filename string) error {
-	// 创建文件，如果所在目录不存在，则先创建目录，再创建文件
-	dir := filepath.Dir(filename)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		os.MkdirAll(dir, 0755)
-	}
-
-	// 创建文件
-	file, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// 将 UpdateCnt 写入Json文件
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(updateCnt)
-}
-
-// LoadUpdateCntFromFile 从文件加载 UpdateCnt
-func LoadUpdateCntFromFile(filename string) (map[string]int, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			log.Fatal(err)
-		}
-	}(file)
-
-	// 从文件加载 UpdateCnt
-	updateCnt := make(map[string]int)
-	decoder := json.NewDecoder(file)
-	err = decoder.Decode(&updateCnt)
-	if err != nil {
-		return nil, err
-	}
-	return updateCnt, nil
 }

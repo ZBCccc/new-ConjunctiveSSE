@@ -73,7 +73,7 @@ func TestAES256CTR(t *testing.T) {
 
 	start := time.Now()
 	for i := 0; i < 1000; i++ {
-		_, err := utils.PrfF_AES256_CTR(key, message)
+		_, err := utils.PrffAes256Ctr(key, message)
 		if err != nil {
 			t.Fatal(err)
 		}

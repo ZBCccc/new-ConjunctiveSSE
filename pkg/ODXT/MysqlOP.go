@@ -13,7 +13,7 @@ import (
 // MySQLSetup sets up the MySQL database
 func MySQLSetup(tableName string) (*sql.DB, error) {
 	// Connect to the MySQL database
-	db, err := sql.Open("mysql", "root:123456@tcp(localhost:33061)/ODXT")
+	db, err := sql.Open("mysql", "root:123456@tcp(localhost:3306)/ODXT")
 	if err != nil {
 		log.Fatal(err)
 		return nil, err
@@ -90,44 +90,6 @@ type SearchPayload struct {
 	Value string
 	Alpha string
 }
-
-// SearchStoken searches the stokenList in the MySQL database
-// func SearchStoken(db *sql.DB, addresses []string, tableName string) ([]SearchPayload, error) {
-// 	// 构建查询语句
-// 	querySQL := fmt.Sprintf("SELECT value, alpha FROM %s WHERE address IN (?)", tableName)
-
-// 	// 使用 sqlx.In 来处理大量参数
-// 	query, args, err := sqlx.In(querySQL, addresses)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	// 重新绑定参数
-// 	query = sqlx.Rebind(sqlx.QUESTION, query)
-
-// 	// 执行查询
-// 	rows, err := db.Query(query, args...)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer rows.Close()
-
-// 	// 处理查询结果
-// 	var result []SearchPayload
-// 	var value, alpha string
-// 	for rows.Next() {
-// 		if err := rows.Scan(&value, &alpha); err != nil {
-// 			return nil, err
-// 		}
-// 		result = append(result, SearchPayload{Value: value, Alpha: alpha})
-// 	}
-
-// 	if err := rows.Err(); err != nil {
-// 		return nil, err
-// 	}
-
-// 	return result, nil
-// }
 
 func SearchStoken(db *sql.DB, address []string, tableName string) ([]SearchPayload, error) {
 	// 准备查询语句，查询数据库中的value和alpha
@@ -244,7 +206,7 @@ func GetRowCountAfterDate(db *sql.DB, tableName string, date time.Time) (int, er
 }
 
 func LoadMySQLDB() (*sql.DB, error) {
-	db, err := sql.Open("mysql", "root:123456@tcp(localhost:33061)/ODXT")
+	db, err := sql.Open("mysql", "root:123456@tcp(localhost:3306)/ODXT")
 	if err != nil {
 		log.Fatal(err)
 		return nil, err
