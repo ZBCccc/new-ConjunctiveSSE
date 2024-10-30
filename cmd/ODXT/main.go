@@ -1,7 +1,7 @@
 package main
 
 import (
-	"ConjunctiveSSE/ODXT"
+	"ConjunctiveSSE/pkg/ODXT"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -23,7 +23,7 @@ type Config struct {
 func main() {
 	var config Config
 	// 读取配置文件
-	file, err := os.Open("./benchmark/ODXT/config.json")
+	file, err := os.Open("./cmd/ODXT/config.json")
 	if err != nil {
 		fmt.Println("Error opening config file:", err)
 		return

@@ -50,17 +50,16 @@ func FAesni(key []byte, input []byte, option int) ([]byte, error) {
 	}
 }
 
-// Xor 对两个字符串进行异或运算
-func Xor(s1, s2 string) string {
+// Xor 对两个byte切片进行异或运算
+func Xor(s1, s2 []byte) []byte {
 	if len(s1) > len(s2) {
 		fmt.Printf("not sufficient size: %d, %d\n", len(s1), len(s2))
-		return ""
+		return nil
 	}
 
-	result := []byte(s1)
+	result := s1
 	for i := 0; i < len(result); i++ {
 		result[i] ^= s2[i]
 	}
-	return string(result)
+	return result
 }
-

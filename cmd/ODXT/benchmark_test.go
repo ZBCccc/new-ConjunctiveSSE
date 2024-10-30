@@ -1,8 +1,8 @@
 package main
 
 import (
-	"ConjunctiveSSE/Database"
-	"ConjunctiveSSE/utils"
+	"ConjunctiveSSE/pkg/Database"
+	"ConjunctiveSSE/pkg/utils"
 	"bytes"
 	"crypto"
 	"crypto/hmac"

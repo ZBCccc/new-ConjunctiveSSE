@@ -1,23 +1,21 @@
 package HDXT
 
 import (
-	"ConjunctiveSSE/Database"
-	"ConjunctiveSSE/utils"
+	"ConjunctiveSSE/pkg/Database"
+	"ConjunctiveSSE/pkg/utils"
 	"context"
 	"crypto/rand"
-	"encoding/base64"
 	"fmt"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"log"
-	"math/big"
-	"path/filepath"
-	"strconv"
-	"time"
-
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"gorm.io/gorm"
+	"log"
+	"path/filepath"
+	"slices"
+	"strconv"
+	"time"
 )
 
 const (
@@ -50,12 +48,22 @@ type CipherText struct {
 	gorm.Model
 }
 
+type AuhmeCipherText struct {
+	Label string
+	Enc   string
+}
+
 type UpdatePayload struct {
 	Address string
 	Val     string
 }
 
-func (hdxt *HDXT) Setup(dbName string, randomKey bool) error {
+var (
+	universeIDNums int
+	universeIDs    []string
+)
+
+func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 	// 初始化私钥
 	if randomKey {
 		// 生成4个16字节长度的随机私钥
@@ -101,6 +109,14 @@ func (hdxt *HDXT) Setup(dbName string, randomKey bool) error {
 		return err
 	}
 
+	// 获取id数量
+	universeIDs, err = Database.GetUniqueValSets(hdxt.PlaintextDB)
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+	universeIDNums = len(universeIDs)
+
 	// 初始化Auhme
 	hdxt.Auhme.Cnt = 0
 	hdxt.Auhme.S = make([]string, 0)
@@ -110,7 +126,7 @@ func (hdxt *HDXT) Setup(dbName string, randomKey bool) error {
 	return nil
 }
 
-func (hdxt *HDXT) CiphertextGenPhase() {
+func (hdxt *HDXT) SetupPhase() error {
 	db := hdxt.TMap
 
 	// 获取MongoDB数据库
@@ -119,6 +135,7 @@ func (hdxt *HDXT) CiphertextGenPhase() {
 
 	// 初始化
 	uploadList := make([]CipherText, 0, UploadListMaxLength+1)
+	auhmeCipherList := make([]AuhmeCipherText, 0, UploadListMaxLength+1)
 	encryptTimeList := make([]time.Duration, 0, 1000000)
 	keywordList := make([]string, 0, 1000000)
 	volumeList := make([]int, 0, 1000000)
@@ -133,6 +150,7 @@ func (hdxt *HDXT) CiphertextGenPhase() {
 	cur, err := collection.Find(ctx, bson.D{}, opts)
 	if err != nil {
 		log.Fatal(err)
+		return err
 	}
 
 	// 关闭游标
@@ -142,6 +160,7 @@ func (hdxt *HDXT) CiphertextGenPhase() {
 	var keywordIds []bson.M
 	if err = cur.All(ctx, &keywordIds); err != nil {
 		log.Fatal(err)
+		return err
 	}
 
 	// 读取所有记录
@@ -149,6 +168,7 @@ func (hdxt *HDXT) CiphertextGenPhase() {
 		valSet, ok := keywordId["val_set"].(primitive.A)
 		if !ok {
 			log.Fatal("val_set is not of type primitive.A")
+			return fmt.Errorf("val_set is not of type primitive.A")
 		}
 		var ids []string
 		for _, v := range valSet {
@@ -156,17 +176,20 @@ func (hdxt *HDXT) CiphertextGenPhase() {
 				ids = append(ids, str)
 			} else {
 				log.Fatal("val_set contains non-string value")
+				return fmt.Errorf("val_set contains non-string value")
 			}
 		}
 		ids = utils.RemoveDuplicates(ids)
 		keyword := keywordId["k"].(string)
 
-		encryptTime, keywordCipher, err := hdxt.Encrypt(keyword, ids, 1)
+		encryptTime, keywordCipher, auhmeCipher, err := hdxt.Setup(keyword, ids, 1)
 		if err != nil {
 			log.Fatal(err)
+			return err
 		}
 
 		uploadList = append(uploadList, keywordCipher...)
+		auhmeCipherList = append(auhmeCipherList, auhmeCipher...)
 		encryptTimeList = append(encryptTimeList, encryptTime)
 		keywordList = append(keywordList, keyword)
 		volumeList = append(volumeList, len(keywordCipher))
@@ -178,10 +201,22 @@ func (hdxt *HDXT) CiphertextGenPhase() {
 			err = WriteUploadList(db, uploadList)
 			if err != nil {
 				log.Fatal(err)
+				return err
 			}
 
 			// 清空上传列表
 			uploadList = make([]CipherText, 0, UploadListMaxLength+1)
+		}
+		if len(auhmeCipherList) >= UploadListMaxLength {
+			// 写入文件
+			err = WriteAuhmeCipherList(db, auhmeCipherList)
+			if err != nil {
+				log.Fatal(err)
+				return err
+			}
+
+			// 清空上传列表
+			auhmeCipherList = make([]AuhmeCipherText, 0, UploadListMaxLength+1)
 		}
 	}
 
@@ -191,6 +226,15 @@ func (hdxt *HDXT) CiphertextGenPhase() {
 		err = WriteUploadList(db, uploadList)
 		if err != nil {
 			log.Fatal(err)
+			return err
+		}
+	}
+	if len(auhmeCipherList) > 0 {
+		// 写入文件
+		err = WriteAuhmeCipherList(db, auhmeCipherList)
+		if err != nil {
+			log.Fatal(err)
+			return err
 		}
 	}
 
@@ -218,61 +262,58 @@ func (hdxt *HDXT) CiphertextGenPhase() {
 	err = utils.WriteResultToCSV(resultpath, resultHeader, resultData)
 	if err != nil {
 		log.Fatal(err)
+		return err
 	}
+
+	return nil
 }
 
-func (hdxt *HDXT) Encrypt(keyword string, ids []string, operation int) (time.Duration, []CipherText, error) {
-	// OXT
-	k := hdxt.Mitra.Key
-	k1, k2, k3 := hdxt.Auhme.Keys[0], hdxt.Auhme.Keys[1], hdxt.Auhme.Keys[2]
+func (hdxt *HDXT) Setup(keyword string, ids []string, operation int) (time.Duration, []CipherText, []AuhmeCipherText, error) {
 	var encryptedTime time.Duration
-	keywordsCipher := make([]CipherText, len(ids))
+	keywordsCipher := make([]CipherText, 0, len(ids))
+	auhmeCipher := make([]AuhmeCipherText, universeIDNums)
 
 	_, ok := hdxt.FileCnt[keyword]
 	if !ok {
 		hdxt.FileCnt[keyword] = 0
 	}
 
-	for i, id := range ids {
-		start := time.Now()
+	for i, id := range universeIDs {
+		if slices.Contains(ids, id) {
+			start := time.Now()
 
-		// OXT Part
-		hdxt.FileCnt[keyword]++
-		wWc := append([]byte(keyword), big.NewInt(int64(hdxt.FileCnt[keyword])).Bytes()...)
+			// OXT Part
+			address, val, err := mitraEncrypt(hdxt, keyword, id, operation)
+			if err != nil {
+				log.Println(err)
+				return 0, nil, nil, err
+			}
 
-		// address = PRF(kt, w||wc||0)
-		address, err := utils.PrfF(k, append(wWc, big.NewInt(int64(0)).Bytes()...))
-		if err != nil {
-			log.Println(err)
+			// Auhme Part
+			label, enc, err := auhmeEncrypt(hdxt, keyword, id, 1, 0)
+			if err != nil {
+				log.Println(err)
+				return 0, nil, nil, err
+			}
+
+			encryptedTime += time.Since(start)
+			auhmeCipher[i] = AuhmeCipherText{Label: label, Enc: enc}
+			keywordsCipher = append(keywordsCipher, CipherText{Address: address, Value: val})
+		} else {
+			start := time.Now()
+			// Auhme Part
+			label, enc, err := auhmeEncrypt(hdxt, keyword, id, 0, 0)
+			if err != nil {
+				log.Println(err)
+				return 0, nil, nil, err
+			}
+			
+			encryptedTime += time.Since(start)
+			auhmeCipher[i] = AuhmeCipherText{Label: label, Enc: enc}
 		}
-
-		// val = PRF(kt, w||wc||1) xor (id||op)
-		val, err := utils.PrfF(k, append(wWc, big.NewInt(int64(1)).Bytes()...))
-		if err != nil {
-			log.Println(err)
-			return encryptedTime, nil, err
-		}
-		val, err = utils.BytesXORWithOp(val, []byte(id), operation)
-		if err != nil {
-			log.Println(err)
-			return encryptedTime, nil, err
-		}
-
-		// Auhme Part
-		// label = PRF(k1, w||id)
-		wId := append([]byte(keyword), []byte(id)...)
-		label, err := utils.FAesni(k1, wId, 1)
-
-		encryptedTime += time.Since(start)
-
-		// Encoded the ciphertext
-		base64Address := base64.StdEncoding.EncodeToString(address)
-		base64Val := base64.StdEncoding.EncodeToString(val)
-
-		keywordsCipher[i] = CipherText{Address: base64Address, Value: base64Val}
 	}
 
-	return encryptedTime, keywordsCipher, nil
+	return encryptedTime, keywordsCipher, auhmeCipher, nil
 }
 
 // CalculateUpdatePayloadSize 计算[]UpdatePayload的字节大小

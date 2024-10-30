@@ -1,8 +1,8 @@
 package ODXT
 
 import (
-	"ConjunctiveSSE/Database"
-	"ConjunctiveSSE/utils"
+	"ConjunctiveSSE/pkg/Database"
+	"ConjunctiveSSE/pkg/utils"
 	"bufio"
 	"context"
 	"crypto/rand"

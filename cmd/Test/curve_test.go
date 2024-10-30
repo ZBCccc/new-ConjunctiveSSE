@@ -1,7 +1,7 @@
 package main
 
 import (
-	"ConjunctiveSSE/utils"
+	"ConjunctiveSSE/pkg/utils"
 	"golang.org/x/crypto/curve25519"
 	"math/big"
 	"sync"

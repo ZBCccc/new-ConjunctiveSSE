@@ -1,6 +1,8 @@
 package main
 
-import "ConjunctiveSSE/HDXT"
+import (
+	"ConjunctiveSSE/pkg/HDXT"
+)
 
 func main() {
 	db, err := HDXT.MySQLSetup("Crime_USENIX_REV")

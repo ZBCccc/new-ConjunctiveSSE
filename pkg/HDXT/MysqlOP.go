@@ -37,3 +37,7 @@ func MySQLSetup(dbName string) (*gorm.DB, error) {
 func WriteUploadList(db *gorm.DB, uploadList []CipherText) error {
 	return db.Create(&uploadList).Error
 }
+
+func WriteAuhmeCipherList(db *gorm.DB, auhmeCipherList []AuhmeCipherText) error {
+	return db.Create(&auhmeCipherList).Error
+}

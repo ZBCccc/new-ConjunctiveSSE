@@ -125,9 +125,9 @@ func BytesXORWithOp(mac, id []byte, op int) ([]byte, error) {
 		return nil, fmt.Errorf("MAC length must be 32 bytes")
 	}
 
-	// 确保id的长度为小于等于31字节
+	// 确保id的长度为小于等于31字节，截断只取前31个字节
 	if len(id) > 31 {
-		return nil, fmt.Errorf("id length must be less than or equal to 31 bytes")
+		id = id[:31]
 	}
 
 	// 执行异或操作

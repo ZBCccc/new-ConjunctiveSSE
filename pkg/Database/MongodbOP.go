@@ -1,7 +1,7 @@
 package Database
 
 import (
-	"ConjunctiveSSE/utils"
+	"ConjunctiveSSE/pkg/utils"
 	"context"
 	"log"
 	"math/rand"
@@ -101,4 +101,35 @@ func GenQuerydataFromDB(dbName, tableName string, numPairs int) error {
 	utils.WriteResultToFile("keywords_6.txt", keywordsSix)
 
 	return nil
+}
+
+func GetUniqueValSets(PlaintextDB *mongo.Database) ([]string, error) {
+	collection := PlaintextDB.Collection("id_keywords")
+	ctx := context.TODO()
+
+	// 使用聚合管道提取并去重val_set
+	pipeline := mongo.Pipeline{
+		{{Key: "$unwind", Value: "$val_set"}}, // 展开val_set数组
+		{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$val_set"}}}}, // 按val_set的值进行分组，实现去重
+	}
+	cursor, err := collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var results []bson.M
+	if err = cursor.All(ctx, &results); err != nil {
+		return nil, err
+	}
+
+	// 将结果转换为字符串切片
+	var uniqueVals []string
+	for _, result := range results {
+		if val, ok := result["_id"].(string); ok {
+			uniqueVals = append(uniqueVals, val)
+		}
+	}
+
+	return uniqueVals, nil
 }
