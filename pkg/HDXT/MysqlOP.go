@@ -24,11 +24,8 @@ func MySQLSetup(tableName string) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	// Set the table prefix
-
 	// Initialize the model, figure out the table name
-	db = db.Table(tableName)
-	if err := db.AutoMigrate(&MitraCipherText{}); err != nil {
+	if err := db.AutoMigrate(&MitraCipherText{}, &AuhmeCipherText{}); err != nil {
 		return nil, err
 	}
 

@@ -17,11 +17,11 @@ func TestDBFind(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var cipherTexts []HDXT.CipherText
-	db.Where("address = ?", "0x124").Find(&cipherTexts)
+	var mitraCipherTexts []HDXT.MitraCipherText
+	db.Where("address = ?", "0x124").Find(&mitraCipherTexts)
 
-	for _, cipherText := range cipherTexts {
-		t.Log(cipherText)
+	for _, mitraCipherText := range mitraCipherTexts {
+		t.Log(mitraCipherText)
 	}
 }
 
@@ -31,17 +31,26 @@ func TestInsert(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var cipherTexts []HDXT.CipherText
-	cipherTexts = append(cipherTexts, HDXT.CipherText{
+	var cipherTexts []HDXT.MitraCipherText
+	cipherTexts = append(cipherTexts, HDXT.MitraCipherText{
 		Address: "0x125",
 		Value:   "0x125",
 	})
-	cipherTexts = append(cipherTexts, HDXT.CipherText{
+	cipherTexts = append(cipherTexts, HDXT.MitraCipherText{
 		Address: "0x126",
 		Value:   "0x126",
 	})
 
 	err = HDXT.WriteUploadList(db, cipherTexts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	auhmeCipherTexts := []HDXT.AuhmeCipherText{
+		{Label: "0x127", Enc: "0x127"},
+		{Label: "0x128", Enc: "0x128"},
+		{Label: "0x129", Enc: "0x129"},
+	}
+	err = HDXT.WriteAuhmeCipherList(db, auhmeCipherTexts)
 	if err != nil {
 		t.Fatal(err)
 	}

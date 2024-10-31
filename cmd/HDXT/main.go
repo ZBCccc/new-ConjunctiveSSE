@@ -10,11 +10,11 @@ func main() {
 		panic(err)
 	}
 
-	db.Create(&HDXT.CipherText{
+	db.Create(&HDXT.MitraCipherText{
 		Address: "0x123",
 		Value:   "0x123",
 	})
-	db.Create(&HDXT.CipherText{
+	db.Create(&HDXT.MitraCipherText{
 		Address: "0x124",
 		Value:   "0x124",
 	})

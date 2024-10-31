@@ -51,6 +51,7 @@ type MitraCipherText struct {
 type AuhmeCipherText struct {
 	Label string
 	Enc   string
+	gorm.Model
 }
 
 type UpdatePayload struct {
