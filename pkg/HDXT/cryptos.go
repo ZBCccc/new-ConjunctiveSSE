@@ -56,3 +56,63 @@ func auhmeEncrypt(hdxt *HDXT, keyword string, id string, flag int, cnt int) (str
 	enc := utils.Xor(enc1, enc2)
 	return base64.StdEncoding.EncodeToString(label), base64.StdEncoding.EncodeToString(enc), nil
 }
+
+type Operation int
+const (
+	Add Operation = iota
+	Edit
+)
+type alpha struct {
+	cnt int
+	t map[string]int
+	delta int
+	s []string
+}
+
+func auhmeGenUpd(hdxt *HDXT, op Operation, ku string, vu int) (map[string]string, *alpha, error) {
+	k1, k2, k3 := hdxt.Auhme.Keys[0], hdxt.Auhme.Keys[1], hdxt.Auhme.Keys[2]
+	cnt, s, t, delta := hdxt.Auhme.Cnt, hdxt.Auhme.S, hdxt.Auhme.T, hdxt.Auhme.Delta
+	tok := make(map[string]string)
+	if op == Add {
+		// l ← F (k1, ku )
+		l, err := utils.FAesni(k1, []byte(ku), 1)
+		if err != nil {
+			return nil, nil, err
+		}
+		tok1, err := utils.FAesni(k2, append([]byte(l), byte(vu)), 1)
+		if err != nil {
+			return nil, nil, err
+		}
+		tok2, err := utils.FAesni(k3, append([]byte(l), byte(cnt)), 1)
+		if err != nil {
+			return nil, nil, err
+		}
+		tok[base64.StdEncoding.EncodeToString(l)] = base64.StdEncoding.EncodeToString(utils.Xor(tok1, tok2))
+		return tok, &alpha{cnt, t, delta, s}, nil
+	}
+
+	var err error
+	t, err = CInsert(k1, ku, vu, t)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if len(t) + 1 < delta {
+		return nil, &alpha{cnt, t, delta, nil}, nil
+	}
+
+
+	return tok, &alpha{cnt, t, delta, s}, nil
+}
+
+// CInsert inserts a key-value pair into the map. If the key already exists, it deletes the existing key-value pair.
+func CInsert(k1 []byte, k string, v int, t map[string]int) (map[string]int, error) {
+	l, err := utils.FAesni(k1, []byte(k), 1)
+	if err != nil {
+		return nil, err
+	}
+	delete(t, base64.StdEncoding.EncodeToString(l))
+	t[base64.StdEncoding.EncodeToString(l)] = v
+	return t, nil
+}
+

@@ -31,17 +31,13 @@ func TestInsert(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var cipherTexts []HDXT.MitraCipherText
-	cipherTexts = append(cipherTexts, HDXT.MitraCipherText{
-		Address: "0x125",
-		Value:   "0x125",
-	})
-	cipherTexts = append(cipherTexts, HDXT.MitraCipherText{
-		Address: "0x126",
-		Value:   "0x126",
-	})
+	cipherTexts := []HDXT.MitraCipherText{
+		{Address: "0x124", Value: "0x124"},
+		{Address: "0x125", Value: "0x125"},
+		{Address: "0x126", Value: "0x126"},
+	}
 
-	err = HDXT.WriteUploadList(db, cipherTexts)
+	err = HDXT.WriteMitraCipherList(db, cipherTexts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +80,7 @@ func TestMongoDBCount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// cover sring slice to int slice
+	// cover string slice to int slice
 	var intSlice []int
 	for _, val := range uniqueVals {
 		intVal, err := strconv.Atoi(val)

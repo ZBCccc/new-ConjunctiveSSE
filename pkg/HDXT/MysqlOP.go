@@ -32,10 +32,12 @@ func MySQLSetup(tableName string) (*gorm.DB, error) {
 	return db, nil
 }
 
-func WriteUploadList(db *gorm.DB, uploadList []MitraCipherText) error {
-	return db.Create(&uploadList).Error
+// WriteMitraCipherList writes a list of MitraCipherText to the database
+func WriteMitraCipherList(db *gorm.DB, mitraCipherList []MitraCipherText) error {
+	return db.Create(&mitraCipherList).Error
 }
 
+// WriteAuhmeCipherList inserts a list of AuhmeCipherText records into the provided Gorm database connection.
 func WriteAuhmeCipherList(db *gorm.DB, auhmeCipherList []AuhmeCipherText) error {
 	return db.Create(&auhmeCipherList).Error
 }

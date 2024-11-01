@@ -60,8 +60,8 @@ type UpdatePayload struct {
 }
 
 var (
-	universeIDNums int
-	universeIDs    []string
+	universeKeywordsNums int
+	universeKeywords     []string
 )
 
 func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
@@ -106,23 +106,23 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 	// 连接MongoDB
 	hdxt.PlaintextDB, err = Database.MongoDBSetup(dbName)
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Error initializing PlaintextDB:", err)
 		return err
 	}
 
-	// 获取id数量
-	universeIDs, err = Database.GetUniqueValSets(hdxt.PlaintextDB)
+	// 获取keyword数量
+	universeKeywords, err = Database.GetUniqueValSets(hdxt.PlaintextDB)
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Error getting universeKeywords:", err)
 		return err
 	}
-	universeIDNums = len(universeIDs)
+	universeKeywordsNums = len(universeKeywords)
 
 	// 初始化Auhme
 	hdxt.Auhme.Cnt = 0
 	hdxt.Auhme.S = make([]string, 0)
 	hdxt.Auhme.T = make(map[string]int)
-	hdxt.Auhme.Delta = 0
+	hdxt.Auhme.Delta = len(hdxt.Auhme.T)
 
 	return nil
 }
@@ -143,7 +143,7 @@ func (hdxt *HDXT) SetupPhase() error {
 	mitraCipherList := make([]MitraCipherText, 0, UploadListMaxLength+1)
 	auhmeCipherList := make([]AuhmeCipherText, 0, UploadListMaxLength+1)
 	encryptTimeList := make([]time.Duration, 0, 1000000)
-	keywordList := make([]string, 0, 1000000)
+	idList := make([]string, 0, 1000000)
 	volumeList := make([]volume, 0, 1000000)
 	clientStorageUpdateBytes := make([]int, 0, 1000000)
 
@@ -155,7 +155,7 @@ func (hdxt *HDXT) SetupPhase() error {
 	opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(1000)
 	cur, err := collection.Find(ctx, bson.D{}, opts)
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Error getting collection:", err)
 		return err
 	}
 
@@ -163,48 +163,50 @@ func (hdxt *HDXT) SetupPhase() error {
 	defer cur.Close(ctx)
 
 	// 读取游标中的所有记录
-	var keywordIds []bson.M
-	if err = cur.All(ctx, &keywordIds); err != nil {
-		log.Fatal(err)
+	var idKeywords []bson.M
+	if err = cur.All(ctx, &idKeywords); err != nil {
+		log.Println("Error getting keywordIds:", err)
 		return err
 	}
 
-	// 读取所有记录
-	for _, keywordId := range keywordIds {
-		valSet, ok := keywordId["val_set"].(primitive.A)
+	// Setup Phase
+	for _, idKeyword := range idKeywords {
+		valSet, ok := idKeyword["val_set"].(primitive.A)
 		if !ok {
-			log.Fatal("val_set is not of type primitive.A")
+			log.Println("val_set is not of type primitive.A")
+			return err
 		}
-		var ids []string
+		var keywords []string
 		for _, v := range valSet {
 			if str, ok := v.(string); ok {
-				ids = append(ids, str)
+				keywords = append(keywords, str)
 			} else {
-				log.Fatal("val_set contains non-string value")
+				log.Println("val_set contains non-string value")
+				return err
 			}
 		}
-		ids = utils.RemoveDuplicates(ids) // 对id去重
-		keyword := keywordId["k"].(string)
+		keywords = utils.RemoveDuplicates(keywords) // 对keywords去重
+		id := idKeyword["k"].(string)
 
-		encryptTime, mitraCipher, auhmeCipher, err := hdxt.Setup(keyword, ids, 1)
+		encryptTime, mitraCipher, auhmeCipher, err := hdxt.Setup(id, keywords, 1)
 		if err != nil {
-			log.Fatal(err)
+			log.Println("Error in Setup:", err)
 			return err
 		}
 
 		mitraCipherList = append(mitraCipherList, mitraCipher...)
 		auhmeCipherList = append(auhmeCipherList, auhmeCipher...)
 		encryptTimeList = append(encryptTimeList, encryptTime)
-		keywordList = append(keywordList, keyword)
+		idList = append(idList, id)
 		volumeList = append(volumeList, volume{mitraVolume: len(mitraCipher), auhmeVolume: len(auhmeCipher)})
 		clientStorageUpdateBytes = append(clientStorageUpdateBytes, CalculateUpdatePayloadSize(mitraCipher))
 
 		// 如果上传列表的长度达到最大限制， 则将其写入数据库
 		if len(mitraCipherList) >= UploadListMaxLength {
 			// 写入文件
-			err = WriteUploadList(db, mitraCipherList)
+			err = WriteMitraCipherList(db, mitraCipherList)
 			if err != nil {
-				log.Fatal(err)
+				log.Println("Error writing MitraCipherList:", err)
 				return err
 			}
 
@@ -215,7 +217,7 @@ func (hdxt *HDXT) SetupPhase() error {
 			// 写入文件
 			err = WriteAuhmeCipherList(db, auhmeCipherList)
 			if err != nil {
-				log.Fatal(err)
+				log.Println("Error writing AuhmeCipherList:", err)
 				return err
 			}
 
@@ -224,12 +226,67 @@ func (hdxt *HDXT) SetupPhase() error {
 		}
 	}
 
+	// Update Phase
+	for _, idKeyword := range idKeywords {
+		valSet, ok := idKeyword["val_set"].(primitive.A)
+		if !ok {
+			log.Println("val_set is not of type primitive.A")
+			return err
+		}
+		var keywords []string
+		for _, v := range valSet {
+			if str, ok := v.(string); ok {
+				keywords = append(keywords, str)
+			} else {
+				log.Println("val_set contains non-string value")
+				return err
+			}
+		}
+		keywords = utils.RemoveDuplicates(keywords) // 对keyword去重
+		id := idKeyword["k"].(string)
+		encryptTime, mitraCipher, auhmeCipher, err := hdxt.Encrypt(id, keywords, 1)
+		if err != nil {
+			log.Println("Error in Encrypt:", err)
+			return err
+		}
+
+		mitraCipherList = append(mitraCipherList, mitraCipher...)
+		auhmeCipherList = append(auhmeCipherList, auhmeCipher...)
+		encryptTimeList = append(encryptTimeList, encryptTime)
+		idList = append(idList, id)
+		volumeList = append(volumeList, volume{mitraVolume: len(mitraCipher), auhmeVolume: len(auhmeCipher)})
+		clientStorageUpdateBytes = append(clientStorageUpdateBytes, CalculateUpdatePayloadSize(mitraCipher))
+
+		// 如果上传列表的长度达到最大限制， 则将其写入数据库
+		if len(mitraCipherList) >= UploadListMaxLength {
+			// 写入文件
+			err = WriteMitraCipherList(db, mitraCipherList)
+			if err != nil {
+				log.Println("Error writing MitraCipherList:", err)
+				return err
+			}
+
+			// 清空上传列表
+			mitraCipherList = make([]MitraCipherText, 0, UploadListMaxLength+1)
+		}
+		if len(auhmeCipherList) >= UploadListMaxLength {
+			// 写入文件
+			err = WriteAuhmeCipherList(db, auhmeCipherList)
+			if err != nil {
+				log.Println("Error writing AuhmeCipherList:", err)
+				return err
+			}
+
+			// 清空上传列表
+			auhmeCipherList = make([]AuhmeCipherText, 0, UploadListMaxLength+1)
+		}
+	}
 	// 如果上传列表不为空， 则将其写入数据库
 	if len(mitraCipherList) > 0 {
 		// 写入文件
-		err = WriteUploadList(db, mitraCipherList)
+		err = WriteMitraCipherList(db, mitraCipherList)
 		if err != nil {
-			log.Fatal(err)
+			log.Println("Error writing MitraCipherList:", err)
 			return err
 		}
 	}
@@ -237,7 +294,7 @@ func (hdxt *HDXT) SetupPhase() error {
 		// 写入文件
 		err = WriteAuhmeCipherList(db, auhmeCipherList)
 		if err != nil {
-			log.Fatal(err)
+			log.Println("Error writing AuhmeCipherList:", err)
 			return err
 		}
 	}
@@ -247,7 +304,8 @@ func (hdxt *HDXT) SetupPhase() error {
 	// 保存 odxt.UpdateCnt 到文件
 	err = utils.SaveUpdateCntToFile(hdxt.FileCnt, filepath.Join("result", "Update", "HDXT", fmt.Sprintf("%s_UpdateCnt.json", saveTime.Format("2006-01-02_15-04-05"))))
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Error saving UpdateCnt to file:", err)
+		return err
 	}
 
 	// 设置结果文件的路径和名称
@@ -257,33 +315,31 @@ func (hdxt *HDXT) SetupPhase() error {
 	resultHeader := []string{"keyword", "volume", "addTime", "storageUpdateBytes"}
 
 	// 将结果数据整理成表格形式
-	resultData := make([][]string, len(keywordList))
-	for i, keyword := range keywordList {
-		resultData[i] = []string{keyword, strconv.Itoa(volumeList[i].mitraVolume + volumeList[i].auhmeVolume), encryptTimeList[i].String(), strconv.Itoa(clientStorageUpdateBytes[i])}
+	resultData := make([][]string, len(idList))
+	for i, id := range idList {
+		resultData[i] = []string{id, strconv.Itoa(volumeList[i].mitraVolume + volumeList[i].auhmeVolume), encryptTimeList[i].String(), strconv.Itoa(clientStorageUpdateBytes[i])}
 	}
 
 	// 将结果写入文件
 	err = utils.WriteResultToCSV(resultpath, resultHeader, resultData)
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Error writing result to file:", err)
 		return err
 	}
 
 	return nil
 }
 
-func (hdxt *HDXT) Setup(keyword string, ids []string, operation int) (time.Duration, []MitraCipherText, []AuhmeCipherText, error) {
+func (hdxt *HDXT) Setup(id string, keywords []string, operation int) (time.Duration, []MitraCipherText, []AuhmeCipherText, error) {
 	var encryptedTime time.Duration
-	mitraCipher := make([]MitraCipherText, 0, len(ids))
-	auhmeCipher := make([]AuhmeCipherText, universeIDNums)
+	mitraCipher := make([]MitraCipherText, 0, len(keywords))
+	auhmeCipher := make([]AuhmeCipherText, universeKeywordsNums)
 
-	_, ok := hdxt.FileCnt[keyword]
-	if !ok {
-		hdxt.FileCnt[keyword] = 0
-	}
-
-	for i, id := range universeIDs {
-		if slices.Contains(ids, id) {
+	for i, keyword := range universeKeywords {
+		if slices.Contains(keywords, keyword) {
+			if _, ok := hdxt.FileCnt[keyword]; !ok {
+				hdxt.FileCnt[keyword] = 0
+			}
 			start := time.Now()
 
 			// OXT Part
@@ -327,4 +383,34 @@ func CalculateUpdatePayloadSize(payloads []MitraCipherText) int {
 		size += len(payload.Address) + len(payload.Value)
 	}
 	return size
+}
+
+func (hdxt *HDXT) Encrypt(id string, keywords []string, operation int) (time.Duration, []MitraCipherText, []AuhmeCipherText, error) {
+	var encryptedTime time.Duration
+	mitraCipher := make([]MitraCipherText, 0, len(keywords))
+	auhmeCipher := make([]AuhmeCipherText, universeKeywordsNums)
+
+	// op == add
+	if operation == 1 {
+		for _, keyword := range universeKeywords {
+			if slices.Contains(keywords, keyword) {
+				if _, ok := hdxt.FileCnt[keyword]; !ok {
+					hdxt.FileCnt[keyword] = 0
+				}
+				// oxt part
+				address, val, err := mitraEncrypt(hdxt, keyword, id, operation)
+				if err != nil {
+					log.Println("Error in Encrypt:", err)
+					return 0, nil, nil, err
+				}
+
+				// auhme part
+
+
+				mitraCipher = append(mitraCipher, MitraCipherText{Address: address, Value: val})
+			}
+		}
+	}
+
+	return encryptedTime, mitraCipher, auhmeCipher, nil
 }
