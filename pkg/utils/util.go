@@ -12,13 +12,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/bits-and-blooms/bloom/v3"
-	mapset "github.com/deckarep/golang-set/v2"
 	"log"
 	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/bits-and-blooms/bloom/v3"
+	mapset "github.com/deckarep/golang-set/v2"
 )
 
 type Operation int
@@ -72,6 +73,9 @@ func PrffAes256Ctr(key, message []byte) ([]byte, error) {
 	return ciphertext, nil
 }
 
+var one = big.NewInt(1)
+var zero = big.NewInt(0)
+
 func PrfFp(key, message []byte, p, g *big.Int) (*big.Int, error) {
 	// 生成一个HMAC对象
 	h := hmac.New(sha256.New, key)
@@ -84,11 +88,11 @@ func PrfFp(key, message []byte, p, g *big.Int) (*big.Int, error) {
 
 	// Convert mac result to big.Int
 	res := new(big.Int).SetBytes(mac)
-	res = res.Mod(res, p)
+	res.Mod(res, p)
 
 	// Check if res % p == 0 and add 1 if true
-	if res.Cmp(big.NewInt(0)) == 0 {
-		res.Add(res, big.NewInt(1))
+	if res.Cmp(zero) == 0 {
+		res.Add(res, one)
 	}
 
 	return res, nil
@@ -363,4 +367,49 @@ func LoadUpdateCntFromFile(filename string) (map[string]int, error) {
 		return nil, err
 	}
 	return updateCnt, nil
+}
+
+func QueryKeywordsFromFile(fileName string) [][]string {
+	// 读取待搜索的连接关键词文件，文件格式为：
+	// 每一行都是关键词的集合，关键词之间用#隔开
+	// 例如：
+	// 关键词1#关键词2#关键词3
+	// 关键词4#关键词5
+	// 关键词6
+	// 读取待搜索的关键词文件
+	file, err := os.Open(fileName)
+	if err != nil {
+		log.Fatal("无法打开文件:", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	var keywordsList [][]string
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		keywords := strings.Split(line, "#")
+		keywordsList = append(keywordsList, keywords)
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Fatal("读取文件时出错:", err)
+	}
+
+	return keywordsList
+}
+
+func BytesXOR(b1, b2 []byte) []byte {
+	// b1, b2的长度均为32字节
+
+	var result []byte
+	result = make([]byte, len(b1))
+	copy(result, b1)
+
+	// 对最小长度的部分进行异或操作
+	for i := 0; i < len(b1); i++ {
+		result[i] = b1[i] ^ b2[i]
+	}
+
+	return result
 }

@@ -4,12 +4,10 @@ import (
 	"ConjunctiveSSE/pkg/utils"
 	"golang.org/x/crypto/curve25519"
 	"math/big"
-	"sync"
 	"testing"
-	"time"
 )
 
-func TestCurve(t *testing.T) {
+func BenchmarkCurve(b *testing.B) {
 	// 定义 a 和 p
 	kx := "kx"
 	kz := "kz"
@@ -29,39 +27,28 @@ func TestCurve(t *testing.T) {
 	var aBytes [32]byte
 	copy(aBytes[:], a.Bytes())
 
-	start := time.Now()
-	var wg sync.WaitGroup
-	for i := 0; i < 1000; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			curve25519.ScalarBaseMult(result, &aBytes)
-		}()
+	for i := 0; i < b.N; i++ {
+		curve25519.ScalarBaseMult(result, &aBytes)
 	}
-	wg.Wait()
-	t2 := time.Since(start)
-	t.Log("curve25519 time:", t2)
 }
 
-func TestHMACSHA256(t *testing.T) {
+func BenchmarkHMACSHA256(b *testing.B) {
 	keyword := "kt"
 	w1 := "F0"
 	j := 1
 	message := append(append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), big.NewInt(int64(0)).Bytes()...)
 
 	// 测试 HMAC-SHA256
-	start := time.Now()
-	for i := 0; i < 1000; i++ {
+
+	for i := 0; i < b.N; i++ {
 		_, err := utils.PrfF([]byte(keyword), message)
 		if err != nil {
-			t.Fatal(err)
+			b.Fatal(err)
 		}
 	}
-	t2 := time.Since(start)
-	t.Log("PrfF time:", t2)
 }
 
-func TestAES256CTR(t *testing.T) {
+func BenchmarkAES256CTR(b *testing.B) {
 	keyword := "kt"
 	w1 := "F0"
 	j := 1
@@ -71,18 +58,15 @@ func TestAES256CTR(t *testing.T) {
 	key := make([]byte, 32)
 	copy(key, keyword)
 
-	start := time.Now()
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < b.N; i++ {
 		_, err := utils.PrffAes256Ctr(key, message)
 		if err != nil {
-			t.Fatal(err)
+			b.Fatal(err)
 		}
 	}
-	t2 := time.Since(start)
-	t.Log("PrfF_AES256_CTR time:", t2)
 }
 
-func TestXtoken(t *testing.T) {
+func BenchmarkXtoken(b *testing.B) {
 	kx := "kx"
 	kz := "kz"
 	w1 := "F0"
@@ -91,19 +75,16 @@ func TestXtoken(t *testing.T) {
 	p = p.Lsh(p, 255) // 2^255
 	p = p.Sub(p, big.NewInt(19))
 	g := big.NewInt(9)
-
-	start := time.Now()
-	for i := 0; i < 1000; i++ {
-		xtoken1, _ := utils.PrfFp([]byte(kx), []byte(w1), p, g)
-		xtoken2, _ := utils.PrfFp([]byte(kz), append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), p, g)
+	xByte, w1Byte, zByte := []byte(kx), []byte(w1), []byte(kz)
+	for i := 0; i < b.N; i++ {
+		xtoken1, _ := utils.PrfFp(xByte, w1Byte, p, g)
+		xtoken2, _ := utils.PrfFp(zByte, append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), p, g)
 		_ = xtoken1
 		_ = xtoken2
 	}
-	t2 := time.Since(start)
-	t.Log("xtoken time:", t2)
 }
 
-func TestGAB(t *testing.T) {
+func BenchmarkGAB(b *testing.B) {
 	kx := "kx"
 	kz := "kz"
 	w1 := "F0"
@@ -118,17 +99,7 @@ func TestGAB(t *testing.T) {
 	xtoken2, _ := utils.PrfFp([]byte(kz), append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), p, g)
 	a := new(big.Int).Mul(xtoken1, xtoken2) // 这里假设 a 是已知的
 
-	start := time.Now()
-
-	var wg sync.WaitGroup
-	for i := 0; i < 1000; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_ = new(big.Int).Exp(g, a, p)
-		}()
+	for i := 0; i < b.N; i++ {
+		_ = new(big.Int).Exp(g, a, p)
 	}
-	wg.Wait()
-	t2 := time.Since(start)
-	t.Log("g^ab time:", t2)
 }
