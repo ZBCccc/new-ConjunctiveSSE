@@ -14,7 +14,7 @@ import (
 
 func MongoDBSetup(dbName string) (*mongo.Database, error) {
 	// Set client options
-	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+	clientOptions := options.Client().ApplyURI("mongodb://localhost:27018")
 
 	// Connect to MongoDB
 	client, err := mongo.Connect(context.TODO(), clientOptions)
@@ -109,7 +109,7 @@ func GetUniqueValSets(PlaintextDB *mongo.Database) ([]string, error) {
 
 	// 使用聚合管道提取并去重val_set
 	pipeline := mongo.Pipeline{
-		{{Key: "$unwind", Value: "$val_set"}}, // 展开val_set数组
+		{{Key: "$unwind", Value: "$val_set"}},                             // 展开val_set数组
 		{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$val_set"}}}}, // 按val_set的值进行分组，实现去重
 	}
 	cursor, err := collection.Aggregate(ctx, pipeline)
