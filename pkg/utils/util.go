@@ -1,16 +1,21 @@
 package utils
 
 import (
+	"bufio"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
+
+	_ "github.com/bits-and-blooms/bloom/v3"
+	mapset "github.com/deckarep/golang-set/v2"
 )
 
 type Operation int
@@ -200,4 +205,112 @@ func WriteResultToFile(filePath string, data [][]string) error {
 
 	fmt.Println("Data written to file:", filePath)
 	return nil
+}
+
+func BytesXOR(b1, b2 []byte) []byte {
+	// b1, b2的长度均为32字节
+
+	result := make([]byte, len(b1))
+	copy(result, b1)
+
+	// 对最小长度的部分进行异或操作
+	for i := 0; i < len(b1); i++ {
+		result[i] = b1[i] ^ b2[i]
+	}
+
+	return result
+}
+
+func HdxtReadKeys(filePath string) ([]byte, [3][]byte, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, [3][]byte{}, err
+	}
+	defer file.Close()
+
+	var mitraKey []byte
+	var auhmeKeys [3][]byte
+
+	scanner := bufio.NewScanner(file)
+
+	line := scanner.Text()
+	mitraKey, err = base64.StdEncoding.DecodeString(line)
+	if err != nil {
+		return nil, [3][]byte{}, err
+	}
+
+	for i := 0; i < 3; i++ {
+		line := scanner.Text()
+		auhmeKeys[i], err = base64.StdEncoding.DecodeString(line)
+		if err != nil {
+			return nil, [3][]byte{}, err
+		}
+	}
+
+	return mitraKey, auhmeKeys, nil
+}
+
+// RemoveDuplicates 去除切片中的重复元素
+func RemoveDuplicates(intSlice []string) []string {
+	// 创建一个新的string集合
+	stringSet := mapset.NewSet[string]()
+
+	// 将切片中的元素添加到集合中
+	for _, v := range intSlice {
+		stringSet.Add(v)
+	}
+
+	// 转换为切片
+	return stringSet.ToSlice()
+}
+
+func QueryKeywordsFromFile(fileName string) [][]string {
+	// 读取待搜索的连接关键词文件，文件格式为：
+	// 每一行都是关键词的集合，关键词之间用#隔开
+	// 例如：
+	// 关键词1#关键词2#关键词3
+	// 关键词4#关键词5
+	// 关键词6
+	// 读取待搜索的关键词文件
+	file, err := os.Open(fileName)
+	if err != nil {
+		log.Fatal("无法打开文件:", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	var keywordsList [][]string
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		keywords := strings.Split(line, "#")
+		keywordsList = append(keywordsList, keywords)
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Fatal("读取文件时出错:", err)
+	}
+
+	return keywordsList
+}
+
+// SaveUpdateCntToFile 保存 UpdateCnt 到文件
+func SaveUpdateCntToFile(updateCnt map[string]int, filename string) error {
+	// 创建文件，如果所在目录不存在，则先创建目录，再创建文件
+	dir := filepath.Dir(filename)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		os.MkdirAll(dir, 0755)
+	}
+
+	// 创建文件
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// 将 UpdateCnt 写入Json文件
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(updateCnt)
 }

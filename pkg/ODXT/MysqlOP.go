@@ -178,9 +178,9 @@ func DropTable(db *sql.DB, tableName string) error {
 	query := fmt.Sprintf("DROP TABLE IF EXISTS %s", tableName)
 	_, err := db.Exec(query)
 	if err != nil {
-        return fmt.Errorf("删除表 %s 时出错: %v", tableName, err)
-    }
-    fmt.Printf("表 %s 已成功删除\n", tableName)
+		return fmt.Errorf("删除表 %s 时出错: %v", tableName, err)
+	}
+	fmt.Printf("表 %s 已成功删除\n", tableName)
 	return nil
 }
 
@@ -207,7 +207,7 @@ func GetRowCountAfterDate(db *sql.DB, tableName string, date time.Time) (int, er
 }
 
 func LoadMySQLDB() (*sql.DB, error) {
-	db, err := sql.Open("mysql", "root:123456@tcp(localhost:3306)/ODXT")
+	db, err := sql.Open("mysql", "root:123456@tcp(localhost:3308)/ODXT")
 	if err != nil {
 		log.Fatal(err)
 		return nil, err

@@ -11,19 +11,19 @@ import (
 
 // 定义一个类型
 type Config struct {
-	Db      string `json:"db"`
-	Phase   string `json:"phase"`
-	Group   string `json:"group"`
-	DelRate    int    `json:"del_rate"`
-	DBSetupFromFiles bool `json:"db_setup_from_files"`
-	XSetPath   string `json:"xset_path"`
-	UpdateCntPath string `json:"update_cnt_path"`
+	Db               string `json:"db"`
+	Phase            string `json:"phase"`
+	Group            string `json:"group"`
+	DelRate          int    `json:"del_rate"`
+	DBSetupFromFiles bool   `json:"db_setup_from_files"`
+	XSetPath         string `json:"xset_path"`
+	UpdateCntPath    string `json:"update_cnt_path"`
 }
 
 func main() {
 	var config Config
 	// 读取配置文件
-	file, err := os.Open("./benchmark/ODXT/config.json")
+	file, err := os.Open("./cmd/ODXT/configs/config.json")
 	if err != nil {
 		fmt.Println("Error opening config file:", err)
 		return
@@ -66,12 +66,13 @@ func TestODXT(cfg Config) error {
 		}
 	}
 	if strings.Contains(cfg.Phase, "c") {
+		t1 := time.Now()
 		odxt.CiphertextGenPhase(cfg.Db)
-		fmt.Println("CiphertextGenPhase")
+		t2 := time.Since(t1)
+		fmt.Println("SearchPhase time:", t2)
 	}
 	if strings.Contains(cfg.Phase, "s") {
 		t1 := time.Now()
-		fmt.Println("SearchPhase")
 		odxt.SearchPhase(cfg.Db, cfg.Group)
 		t2 := time.Since(t1)
 		fmt.Println("SearchPhase time:", t2)

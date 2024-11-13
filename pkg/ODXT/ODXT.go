@@ -96,7 +96,7 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 		}
 	} else {
 		// 读取私钥
-		odxt.Keys = ReadKeys("./benchmark/ODXT/keys.txt")
+		odxt.Keys = ReadKeys("./cmd/ODXT/configs/keys.txt")
 	}
 
 	// 初始化 UpdateCnt
@@ -130,7 +130,7 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 func (odxt *ODXT) DBSetupFromFiles(dbName string, xSetPath string, updateCntPath string) error {
 
 	// 读取私钥
-	odxt.Keys = ReadKeys("./benchmark/ODXT/keys.txt")
+	odxt.Keys = ReadKeys("./cmd/ODXT/configs/keys.txt")
 
 	// 读取 UpdateCnt
 	var err error
@@ -145,7 +145,7 @@ func (odxt *ODXT) DBSetupFromFiles(dbName string, xSetPath string, updateCntPath
 	odxt.p, _ = new(big.Int).SetString("69445180235231407255137142482031499329548634082242122837872648805446522657159", 10)
 
 	// 读取 XSet 和 MySQLDB
-	
+
 	odxt.XSet, err = LoadBloomFilterFromFile(xSetPath)
 	if err != nil {
 		log.Fatal(err)
@@ -252,19 +252,19 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 
 	saveTime := time.Now()
 	// 保存 XSet 到文件
-	err = SaveBloomFilterToFile(odxt.XSet, filepath.Join("result", "Update", "ODXT", fmt.Sprintf("%s_%s_XSet.bin", dbName, saveTime.Format("2006-01-02_15-04-05"))))
+	err = SaveBloomFilterToFile(odxt.XSet, filepath.Join("result", "Update", "ODXT", dbName, fmt.Sprintf("%s_XSet.bin", saveTime.Format("2006-01-02_15-04-05"))))
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// 保存 odxt.UpdateCnt 到文件
-	err = SaveUpdateCntToFile(odxt.UpdateCnt, filepath.Join("result", "Update", "ODXT", fmt.Sprintf("%s_%s_UpdateCnt.json", dbName, saveTime.Format("2006-01-02_15-04-05"))))
+	err = SaveUpdateCntToFile(odxt.UpdateCnt, filepath.Join("result", "Update", "ODXT", dbName, fmt.Sprintf("%s_UpdateCnt.json", saveTime.Format("2006-01-02_15-04-05"))))
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// 设置结果文件的路径和名称
-	resultpath := filepath.Join("result", "Update", "ODXT", fmt.Sprintf("%s_%s.csv", dbName, saveTime.Format("2006-01-02_15-04-05")))
+	resultpath := filepath.Join("result", "Update", "ODXT", dbName, fmt.Sprintf("%s.csv", saveTime.Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
 	resultHeader := []string{"keyword", "volume", "addTime", "storageUpdateBytes"}
@@ -402,7 +402,7 @@ func QueryKeywordsFromFile(fileName string) [][]string {
 }
 
 func (odxt *ODXT) SearchPhase(tableName, fileName string) {
-	fileName = "./benchmark/ODXT/" + fileName
+	fileName = "./cmd/ODXT/configs/" + fileName
 	keywordsList := QueryKeywordsFromFile(fileName)
 
 	// 初始化结果列表
@@ -412,7 +412,7 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
 
 	// 循环搜索
-	keywordsList = keywordsList[:100]
+	keywordsList = keywordsList[:10]
 	for _, keywords := range keywordsList {
 		trapdoorTime, serverTime, sEOpList := odxt.Search(keywords, tableName)
 
@@ -433,7 +433,7 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	}
 
 	// 设置结果文件的路径和名称
-	resultpath := filepath.Join("result", "Search", "ODXT", fmt.Sprintf("%s_%s.csv", tableName, time.Now().Format("2006-01-02_15-04-05")))
+	resultpath := filepath.Join("result", "Search", "ODXT", tableName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
 	resultHeader := []string{"keyword", "clientSearchTime", "serverTime", "resultLength"}

@@ -19,7 +19,7 @@ func MongoDBSetup(dbName string) (*mongo.Database, error) {
 	// Connect to MongoDB
 	client, err := mongo.Connect(context.TODO(), clientOptions)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 		return nil, err
 	}
 
@@ -39,7 +39,7 @@ func MongoDBSetup(dbName string) (*mongo.Database, error) {
 func GenQuerydataFromDB(dbName, tableName string, numPairs int) error {
 	PlaintextDB, err := MongoDBSetup(dbName)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 		return err
 	}
 	defer PlaintextDB.Client().Disconnect(context.TODO())
@@ -76,7 +76,7 @@ func GenQuerydataFromDB(dbName, tableName string, numPairs int) error {
 		// 创建一个新的切片来避免重复
 		shuffledKeywords := make([]string, len(keywordsList))
 		copy(shuffledKeywords, keywordsList)
-		
+
 		// 随机选择两个不同的关键词
 		r.Shuffle(len(shuffledKeywords), func(i, j int) {
 			shuffledKeywords[i], shuffledKeywords[j] = shuffledKeywords[j], shuffledKeywords[i]
@@ -91,7 +91,7 @@ func GenQuerydataFromDB(dbName, tableName string, numPairs int) error {
 		// 创建一个新的切片来避免重复
 		shuffledKeywords := make([]string, len(keywordsList))
 		copy(shuffledKeywords, keywordsList)
-		
+
 		// 随机选择两个不同的关键词
 		r.Shuffle(len(shuffledKeywords), func(i, j int) {
 			shuffledKeywords[i], shuffledKeywords[j] = shuffledKeywords[j], shuffledKeywords[i]
@@ -101,4 +101,72 @@ func GenQuerydataFromDB(dbName, tableName string, numPairs int) error {
 	utils.WriteResultToFile("keywords_6.txt", keywordsSix)
 
 	return nil
+}
+
+func GetUniqueValSets(PlaintextDB *mongo.Database) ([]string, error) {
+	// 获取集合句柄
+	collection := PlaintextDB.Collection("id_keywords")
+	ctx := context.TODO()
+
+	// 使用聚合管道提取并去重val_set
+	pipeline := mongo.Pipeline{
+		{{Key: "$unwind", Value: "$val_set"}},                             // 展开val_set数组
+		{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$val_set"}}}}, // 按val_set的值进行分组，实现去重
+	}
+	// 执行聚合查询
+	cursor, err := collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	// 读取查询结果
+	var results []bson.M
+	if err = cursor.All(ctx, &results); err != nil {
+		return nil, err
+	}
+
+	// 将结果转换为字符串切片
+	var uniqueVals []string
+	for _, result := range results {
+		if val, ok := result["_id"].(string); ok {
+			uniqueVals = append(uniqueVals, val)
+		}
+	}
+
+	return uniqueVals, nil
+}
+
+func GetUniqueKs(PlaintextDB *mongo.Database) ([]string, error) {
+	// 获取集合句柄
+	collection := PlaintextDB.Collection("id_keywords")
+	ctx := context.TODO()
+
+	// 使用聚合管道提取并去重k
+	pipeline := mongo.Pipeline{
+		{{Key: "$unwind", Value: "$k"}},                             // 展开k数组
+		{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$k"}}}}, // 按k的值进行分组，实现去重
+	}
+	// 执行聚合查询
+	cursor, err := collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	// 读取查询结果
+	var results []bson.M
+	if err = cursor.All(ctx, &results); err != nil {
+		return nil, err
+	}
+
+	// 将结果转换为字符串切片
+	var uniqueVals []string
+	for _, result := range results {
+		if val, ok := result["_id"].(string); ok {
+			uniqueVals = append(uniqueVals, val)
+		}
+	}
+
+	return uniqueVals, nil
 }
