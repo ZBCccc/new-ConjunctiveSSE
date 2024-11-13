@@ -99,6 +99,8 @@ func ComputeAlpha(Ky, Kz, id []byte, op int, wWc []byte, p, g *big.Int) (*big.In
 
 // BytesXORWithOp 将MAC值的前31个字节与id异或，并将MAC的最后一个字节与op异或
 func BytesXORWithOp(mac, id []byte, op int) ([]byte, error) {
+	result := make([]byte, len(mac))
+	copy(result, mac)
 	if len(mac) != 32 {
 		return nil, fmt.Errorf("MAC length must be 32 bytes")
 	}
@@ -110,16 +112,16 @@ func BytesXORWithOp(mac, id []byte, op int) ([]byte, error) {
 
 	// 执行异或操作
 	for i := 0; i < len(id); i++ {
-		mac[i] = mac[i] ^ id[i]
+		result[i] = mac[i] ^ id[i]
 	}
 
 	// 将MAC的最后一个字节与op异或
 	if op != 0 && op != 1 {
 		return nil, fmt.Errorf("op must be 0 or 1")
 	}
-	mac[31] = mac[31] ^ byte(op)
+	result[31] = mac[31] ^ byte(op)
 
-	return mac, nil
+	return result, nil
 }
 
 func Base64ToBigInt(base64Str string) (*big.Int, error) {
@@ -134,7 +136,7 @@ func Base64ToBigInt(base64Str string) (*big.Int, error) {
 	return bigIntValue, nil
 }
 
-// RemoveElement 删除sIdList中的特定元素
+// RemoveElement 删除slice中的特定元素
 func RemoveElement(slice []string, target string) []string {
 	for i, v := range slice {
 		if v == target {
@@ -213,7 +215,6 @@ func BytesXOR(b1, b2 []byte) []byte {
 	result := make([]byte, len(b1))
 	copy(result, b1)
 
-	// 对最小长度的部分进行异或操作
 	for i := 0; i < len(b1); i++ {
 		result[i] = b1[i] ^ b2[i]
 	}
@@ -242,6 +243,9 @@ func HdxtReadKeys(filePath string) ([]byte, [3][]byte, error) {
 	for i := 0; i < 3; i++ {
 		line := scanner.Text()
 		auhmeKeys[i], err = base64.StdEncoding.DecodeString(line)
+		// 将auhmeKeys[i]哈希为16字节
+		hash := sha256.Sum256(auhmeKeys[i])
+		auhmeKeys[i] = hash[:16]
 		if err != nil {
 			return nil, [3][]byte{}, err
 		}
@@ -313,4 +317,25 @@ func SaveUpdateCntToFile(updateCnt map[string]int, filename string) error {
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(updateCnt)
+}
+
+// 保存 filecnt 到文件
+func SaveFileCntToFile(fileCnt map[string]int, filename string) error {
+	// 创建文件，如果所在目录不存在，则先创建目录，再创建文件
+	dir := filepath.Dir(filename)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		os.MkdirAll(dir, 0755)
+	}
+
+	// 创建文件
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// 将 fileCnt 写入Json文件
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(fileCnt)
 }

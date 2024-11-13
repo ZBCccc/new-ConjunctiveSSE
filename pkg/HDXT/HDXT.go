@@ -102,8 +102,6 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 		return err
 	}
 	universeKeywordsNums = len(universeKeywords)
-	fmt.Println("universeKeywordsNums:", universeKeywordsNums)
-	fmt.Println("universeKeywords:", universeKeywords[:10])
 
 	// 获取id数量
 	universeIDs, err = Database.GetUniqueKs(hdxt.PlaintextDB)
@@ -112,8 +110,6 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 		return err
 	}
 	universeIDsNums = len(universeIDs)
-	fmt.Println("universeIDsNums:", universeIDsNums)
-	fmt.Println("universeIDs:", universeIDs[:10])
 
 	// 初始化FileCnt
 	hdxt.Mitra.FileCnt = make(map[string]int, universeKeywordsNums)
@@ -127,10 +123,10 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 	return nil
 }
 
-type volume struct {
-	mitraVolume int
-	auhmeVolume int
-}
+// type volume struct {
+// 	mitraVolume int
+// 	auhmeVolume int
+// }
 
 func (hdxt *HDXT) SetupPhase() error {
 	// 获取MongoDB数据库
@@ -138,17 +134,16 @@ func (hdxt *HDXT) SetupPhase() error {
 	defer plaintextDB.Client().Disconnect(context.Background())
 
 	// 初始化
-	encryptTimeList := make([]time.Duration, 0, 1000000)
-	tokenList := make([]*UTok, 0, 1000000)
-	idList := make([]string, 0, 1000000)
-	volumeList := make([]volume, 0, 1000000)
+	setupTimeList := make([]time.Duration, 0, 1000000)
+	// tokenList := make([]*UTok, 0, 1000000)
+	
 
 	// 从MongoDB数据库中获取名为"id_keywords"的集合
 	collection := plaintextDB.Collection("id_keywords")
 
-	// 创建一个游标，设置不超时并每次获取1000条记录
+	// 创建一个游标，设置不超时并每次获取3000条记录
 	ctx := context.TODO()
-	opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(1000)
+	opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(3000)
 	cur, err := collection.Find(ctx, bson.D{}, opts)
 	if err != nil {
 		log.Println("Error getting collection:", err)
@@ -166,7 +161,9 @@ func (hdxt *HDXT) SetupPhase() error {
 	}
 
 	// Setup Phase
-	for _, idKeyword := range idKeywords {
+	idKeywordsSetup := idKeywords[:len(idKeywords)/2]
+	idList := make([]string, 0, len(idKeywords)/2)
+	for _, idKeyword := range idKeywordsSetup {
 		valSet, ok := idKeyword["val_set"].(primitive.A)
 		if !ok {
 			log.Println("val_set is not of type primitive.A")
@@ -183,20 +180,33 @@ func (hdxt *HDXT) SetupPhase() error {
 		}
 		keywords = utils.RemoveDuplicates(keywords) // 对keywords去重
 		id := idKeyword["k"].(string)
-
-		encryptTime, err := hdxt.Setup(id, keywords, 1)
+		encryptTime, err := hdxt.Setup(id, keywords, Add)
 		if err != nil {
 			log.Println("Error in Setup:", err)
 			return err
 		}
 
-		encryptTimeList = append(encryptTimeList, encryptTime)
+		setupTimeList = append(setupTimeList, encryptTime)
 		idList = append(idList, id)
-		volumeList = append(volumeList, volume{mitraVolume: len(hdxt.MitraCipherList), auhmeVolume: len(hdxt.AuhmeCipherList)})
+	}
+	// save to file
+	saveTime := time.Now()
+	resultpath := filepath.Join("result", "Setup", "HDXT", fmt.Sprintf("%s.csv", saveTime.Format("2006-01-02_15-04-05")))
+	resultHeader := []string{"id", "setupTime"}
+	resultData := make([][]string, len(idList))
+	for i, id := range idList {
+		resultData[i] = []string{id, setupTimeList[i].String()}
+	}
+	err = utils.WriteResultToCSV(resultpath, resultHeader, resultData)
+	if err != nil {
+		log.Println("Error writing result to file:", err)
+		return err
 	}
 
 	// Update Phase
-	for _, idKeyword := range idKeywords {
+	idList = make([]string, 0, len(idKeywords)/2)
+	idKeywordsUpdate := idKeywords[len(idKeywords)/2:]
+	for _, idKeyword := range idKeywordsUpdate {
 		valSet, ok := idKeyword["val_set"].(primitive.A)
 		if !ok {
 			log.Println("val_set is not of type primitive.A")
@@ -213,7 +223,7 @@ func (hdxt *HDXT) SetupPhase() error {
 		}
 		keywords = utils.RemoveDuplicates(keywords) // 对keyword去重
 		id := idKeyword["k"].(string)
-		encryptTime, tokList, err := hdxt.Encrypt(id, keywords, 1)
+		encryptTime, tokList, err := hdxt.Encrypt(id, keywords, Add)
 		if err != nil {
 			log.Println("Error in Encrypt:", err)
 			return err
@@ -225,30 +235,28 @@ func (hdxt *HDXT) SetupPhase() error {
 		}
 
 		// save to []
-		encryptTimeList = append(encryptTimeList, encryptTime)
-		tokenList = append(tokenList, tokList...)
+		setupTimeList = append(setupTimeList, encryptTime)
+		// tokenList = append(tokenList, tokList...)
 		idList = append(idList, id)
-		volumeList = append(volumeList, volume{mitraVolume: len(hdxt.MitraCipherList), auhmeVolume: len(hdxt.AuhmeCipherList)})
 	}
-	saveTime := time.Now()
+	saveTime = time.Now()
 
-	// 保存 odxt.UpdateCnt 到文件
-	err = utils.SaveUpdateCntToFile(hdxt.FileCnt, filepath.Join("result", "Update", "HDXT", fmt.Sprintf("%s_UpdateCnt.json", saveTime.Format("2006-01-02_15-04-05"))))
-	if err != nil {
-		log.Println("Error saving UpdateCnt to file:", err)
+	// save filecnt
+	if err := utils.SaveFileCntToFile(hdxt.FileCnt, "./cmd/HDXT/configs/filecnt.json"); err != nil {
+		log.Println("Error saving filecnt to file:", err)
 		return err
 	}
 
-	// 设置结果文件的路径和名称
-	resultpath := filepath.Join("result", "Update", "HDXT", fmt.Sprintf("%s.csv", saveTime.Format("2006-01-02_15-04-05")))
+	// save to file
+	resultpath = filepath.Join("result", "Update", "HDXT", fmt.Sprintf("%s.csv", saveTime.Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
-	resultHeader := []string{"keyword", "volume", "addTime", "storageUpdateBytes"}
+	resultHeader = []string{"id", "addTime"}
 
 	// 将结果数据整理成表格形式
-	resultData := make([][]string, len(idList))
+	resultData = make([][]string, len(idList))
 	for i, id := range idList {
-		resultData[i] = []string{id, strconv.Itoa(volumeList[i].mitraVolume + volumeList[i].auhmeVolume), encryptTimeList[i].String()}
+		resultData[i] = []string{id, setupTimeList[i].String()}
 	}
 
 	// 将结果写入文件
@@ -261,7 +269,7 @@ func (hdxt *HDXT) SetupPhase() error {
 	return nil
 }
 
-func (hdxt *HDXT) Setup(id string, keywords []string, operation int) (time.Duration, error) {
+func (hdxt *HDXT) Setup(id string, keywords []string, operation Operation) (time.Duration, error) {
 	var encryptedTime time.Duration
 
 	for _, keyword := range universeKeywords {
@@ -270,19 +278,24 @@ func (hdxt *HDXT) Setup(id string, keywords []string, operation int) (time.Durat
 				hdxt.FileCnt[keyword] = 0
 			}
 			start := time.Now()
-
+			
 			// OXT Part
-			address, val, err := mitraEncrypt(hdxt, keyword, id, operation)
+			address, val, err := mitraEncrypt(hdxt, keyword, id, int(operation))
 			if err != nil {
 				log.Println(err)
 				return 0, err
 			}
 
 			// Auhme Part
-			label, enc, err := auhmeEncrypt(hdxt, keyword, id, 1, 0)
+			label, enc, err := auhmeEncrypt(hdxt, keyword, id, int(operation))
 			if err != nil {
 				log.Println(err)
 				return 0, err
+			}
+			if keyword == "388" {
+				fmt.Println("id:", id)
+				fmt.Println("address:", address)
+				fmt.Println("val:", val)
 			}
 
 			encryptedTime += time.Since(start)
@@ -291,17 +304,15 @@ func (hdxt *HDXT) Setup(id string, keywords []string, operation int) (time.Durat
 		} else {
 			start := time.Now()
 			// Auhme Part
-			label, enc, err := auhmeEncrypt(hdxt, keyword, id, 0, 0)
+			label, enc, err := auhmeEncrypt(hdxt, keyword, id, 0)
 			if err != nil {
 				log.Println(err)
 				return 0, err
 			}
-
 			encryptedTime += time.Since(start)
 			hdxt.AuhmeCipherList[label] = enc
 		}
 	}
-
 	return encryptedTime, nil
 }
 
@@ -310,7 +321,6 @@ func (hdxt *HDXT) Encrypt(id string, keywords []string, operation Operation) (ti
 	UT := make(map[string]string)
 	var (
 		utok *UTok
-		del  *Delta
 		err  error
 	)
 	start := time.Now()
@@ -327,23 +337,26 @@ func (hdxt *HDXT) Encrypt(id string, keywords []string, operation Operation) (ti
 					log.Println("Error in Encrypt:", err)
 					return 0, nil, err
 				}
+				if keyword == "388" {
+					fmt.Println("id:", id)
+					fmt.Println("address:", address)
+					fmt.Println("val:", val)
+				}
 				hdxt.MitraCipherList[address] = val
 
 				// auhme part
-				utok, del, err = auhmeGenUpd(hdxt, Add, keyword+id, 1)
+				utok, err = auhmeGenUpd(hdxt, Add, keyword+id, 1)
 				if err != nil {
 					log.Println("Error in auhmeGenUpd:", err)
 					return 0, nil, err
 				}
-				hdxt.Auhme.Deltas = del
 			} else {
 				// auhme part
-				utok, del, err = auhmeGenUpd(hdxt, Add, keyword+id, 0)
+				utok, err = auhmeGenUpd(hdxt, Add, keyword+id, 0)
 				if err != nil {
 					log.Println("Error in auhmeGenUpd:", err)
 					return 0, nil, err
 				}
-				hdxt.Auhme.Deltas = del
 			}
 			ut := utok.tok
 			for k, v := range ut {
@@ -355,7 +368,7 @@ func (hdxt *HDXT) Encrypt(id string, keywords []string, operation Operation) (ti
 	} else {
 		// op == edit
 		for _, keyword := range keywords {
-			tok, del, err := hdxt.EditPair(hdxt.Auhme.Deltas, id, keyword, operation)
+			tok, err := hdxt.EditPair(id, keyword, operation)
 			if err != nil {
 				log.Println("Error in Encrypt:", err)
 				return 0, nil, err
@@ -363,15 +376,14 @@ func (hdxt *HDXT) Encrypt(id string, keywords []string, operation Operation) (ti
 			if tok != nil {
 				tokList = append(tokList, tok)
 			}
-			hdxt.Auhme.Deltas = del
 		}
 	}
 	encryptedTime := time.Since(start)
 	return encryptedTime, tokList, nil
 }
 
-func (hdxt *HDXT) EditPair(del *Delta, id, keyword string, operation Operation) (*UTok, *Delta, error) {
-	t, delta, s := del.t, del.delta, del.s
+func (hdxt *HDXT) EditPair(id, keyword string, operation Operation) (*UTok, error) {
+	t, delta, s := hdxt.Auhme.Deltas.t, hdxt.Auhme.Deltas.delta, hdxt.Auhme.Deltas.s
 	if len(t)+1 >= delta {
 		s = make([]string, 0)
 		for _, keyword := range universeKeywords {
@@ -379,32 +391,32 @@ func (hdxt *HDXT) EditPair(del *Delta, id, keyword string, operation Operation) 
 				enc, err := utils.FAesni(hdxt.Auhme.Keys[0], []byte(keyword+id), 1)
 				if err != nil {
 					log.Println("Error in EditPair:", err)
-					return nil, nil, err
+					return nil, err
 				}
 				s = append(s, base64.StdEncoding.EncodeToString(enc))
 			}
 		}
 	}
-	del.s = s
+	hdxt.Auhme.Deltas.s = s
 	if operation == EditPlus {
-		utok, al, err := auhmeGenUpd(hdxt, Edit, keyword+id, 1)
+		utok, err := auhmeGenUpd(hdxt, Edit, keyword+id, 1)
 		if err != nil {
 			log.Println("Error in EditPair:", err)
-			return nil, nil, err
+			return nil, err
 		}
-		return utok, al, nil
+		return utok, nil
 	} else {
-		utok, al, err := auhmeGenUpd(hdxt, Edit, keyword+id, 0)
+		utok, err := auhmeGenUpd(hdxt, Edit, keyword+id, 0)
 		if err != nil {
 			log.Println("Error in EditPair:", err)
-			return nil, nil, err
+			return nil, err
 		}
-		return utok, al, nil
+		return utok, nil
 	}
 }
 
 func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
-	fileName = "./cmd/HDXT/" + fileName
+	fileName = "./cmd/HDXT/configs/" + fileName
 	keywordsList := utils.QueryKeywordsFromFile(fileName)
 
 	// 初始化结果列表
@@ -417,6 +429,7 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 	serverTimeTotal := time.Duration(0)
 
 	// 循环搜索
+	keywordsList = keywordsList[:1]
 	for _, keywords := range keywordsList {
 		// 单关键词搜索
 		// 选择查询频率最低的关键字
@@ -432,6 +445,8 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 		if err != nil {
 			log.Fatal(err)
 		}
+		fmt.Println("w1Ids's length:", len(w1Ids))
+		fmt.Println("w1Ids:", w1Ids)
 		clientTimeTotal += trapdoorTime
 		serverTimeTotal += serverTime
 
@@ -444,11 +459,14 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 			log.Fatal(err)
 		}
 		clientTimeTotal += time.Since(start)
+		fmt.Println("dkList's length:", len(dkList))
+		fmt.Println("dkList[0]:", dkList[0].d, dkList[0].r, dkList[0].L)
 
 		// server search step
 		start = time.Now()
 		posList := auhmeServerSearch(hdxt, dkList)
 		serverTimeTotal += time.Since(start)
+		fmt.Println("posList's length:", len(posList))
 
 		// client search step 2
 		start = time.Now()
@@ -463,7 +481,7 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 	}
 
 	// 设置结果文件的路径和名称
-	resultpath := filepath.Join("result", "Search", "HDXT", fmt.Sprintf("%s_%s.csv", tableName, time.Now().Format("2006-01-02_15-04-05")))
+	resultpath := filepath.Join("result", "Search", "HDXT", tableName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
 	resultHeader := []string{"keyword", "clientTime", "serverTime", "resultLength"}
@@ -489,12 +507,13 @@ func (hdxt *HDXT) SearchOneKeyword(keyword string) (time.Duration, time.Duration
 		log.Println(err)
 		return 0, 0, nil, nil
 	}
+	fmt.Println("tList is ", tList)
 	clientTime := time.Since(start)
-
 	// server search
 	start = time.Now()
 	encryptedIds := mitraServerSearch(hdxt, tList)
 	serverTime := time.Since(start)
+	fmt.Println("encryptedIds is ", encryptedIds)
 
 	// client decrypt and return result
 	start = time.Now()

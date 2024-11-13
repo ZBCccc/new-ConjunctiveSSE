@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	// "strings"
-	// "time"
+	"strings"
+	"time"
 )
 
 // 定义一个类型
@@ -57,18 +57,18 @@ func TestHDXT(cfg Config) error {
 		fmt.Println("DBSetup error", err)
 		return err
 	}
-	// if strings.Contains(cfg.Phase, "c") {
-	// 	t1 := time.Now()
-	// 	hdxt.SetupPhase()
-	// 	t2 := time.Since(t1)
-	// 	fmt.Println("SearchPhase time:", t2)
-	// }
-	// if strings.Contains(cfg.Phase, "s") {
-	// 	t1 := time.Now()
-	// 	hdxt.SearchPhase(cfg.Db, cfg.Group)
-	// 	t2 := time.Since(t1)
-	// 	fmt.Println("SearchPhase time:", t2)
-	// }
+	if strings.Contains(cfg.Phase, "c") {
+		t1 := time.Now()
+		hdxt.SetupPhase()
+		t2 := time.Since(t1)
+		fmt.Println("SetupPhase time:", t2)
+	}
+	if strings.Contains(cfg.Phase, "s") {
+		t1 := time.Now()
+		hdxt.SearchPhase(cfg.Db, cfg.Group)
+		t2 := time.Since(t1)
+		fmt.Println("SearchPhase time:", t2)
+	}
 
 	return nil
 }

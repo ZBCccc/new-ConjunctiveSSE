@@ -11,7 +11,7 @@ func FAesni(key []byte, input []byte, option int) ([]byte, error) {
 	// 创建AES加密器
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, err
+		return nil, err	
 	}
 
 	// 计算需要的块数
