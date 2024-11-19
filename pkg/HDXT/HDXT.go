@@ -101,6 +101,7 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 		log.Println("Error getting universeKeywords:", err)
 		return err
 	}
+	universeKeywords = utils.RemoveDuplicates(universeKeywords)
 	universeKeywordsNums = len(universeKeywords)
 
 	// 获取id数量
@@ -109,6 +110,7 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 		log.Println("Error getting universeIDs:", err)
 		return err
 	}
+	universeIDs = utils.RemoveDuplicates(universeIDs)
 	universeIDsNums = len(universeIDs)
 
 	// 初始化FileCnt
@@ -141,9 +143,9 @@ func (hdxt *HDXT) SetupPhase() error {
 	// 从MongoDB数据库中获取名为"id_keywords"的集合
 	collection := plaintextDB.Collection("id_keywords")
 
-	// 创建一个游标，设置不超时并每次获取3000条记录
+	// 创建一个游标，设置不超时并每次获取1000条记录
 	ctx := context.TODO()
-	opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(3000)
+	opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(1000)
 	cur, err := collection.Find(ctx, bson.D{}, opts)
 	if err != nil {
 		log.Println("Error getting collection:", err)
@@ -287,15 +289,10 @@ func (hdxt *HDXT) Setup(id string, keywords []string, operation Operation) (time
 			}
 
 			// Auhme Part
-			label, enc, err := auhmeEncrypt(hdxt, keyword, id, int(operation))
+			label, enc, err := auhmeEncrypt(hdxt, keyword, id, 1)
 			if err != nil {
 				log.Println(err)
 				return 0, err
-			}
-			if keyword == "388" {
-				fmt.Println("id:", id)
-				fmt.Println("address:", address)
-				fmt.Println("val:", val)
 			}
 
 			encryptedTime += time.Since(start)
@@ -336,11 +333,6 @@ func (hdxt *HDXT) Encrypt(id string, keywords []string, operation Operation) (ti
 				if err != nil {
 					log.Println("Error in Encrypt:", err)
 					return 0, nil, err
-				}
-				if keyword == "388" {
-					fmt.Println("id:", id)
-					fmt.Println("address:", address)
-					fmt.Println("val:", val)
 				}
 				hdxt.MitraCipherList[address] = val
 
@@ -431,7 +423,7 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 	// 循环搜索
 	keywordsList = keywordsList[:1]
 	for _, keywords := range keywordsList {
-		// 单关键词搜索
+		// 单关键词搜索, mitra part
 		// 选择查询频率最低的关键字
 		counter, w1 := math.MaxInt64, keywords[0]
 		for _, w := range keywords {
@@ -445,7 +437,6 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Println("w1Ids's length:", len(w1Ids))
 		fmt.Println("w1Ids:", w1Ids)
 		clientTimeTotal += trapdoorTime
 		serverTimeTotal += serverTime
@@ -453,6 +444,7 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 		// auhme part
 		// clien search step 1
 		q := utils.RemoveElement(keywords, w1)
+		fmt.Println("q:", q)
 		start := time.Now()
 		dkList, err := auhmeClientSearchStep1(hdxt, w1Ids, q)
 		if err != nil {
@@ -507,13 +499,11 @@ func (hdxt *HDXT) SearchOneKeyword(keyword string) (time.Duration, time.Duration
 		log.Println(err)
 		return 0, 0, nil, nil
 	}
-	fmt.Println("tList is ", tList)
 	clientTime := time.Since(start)
 	// server search
 	start = time.Now()
 	encryptedIds := mitraServerSearch(hdxt, tList)
 	serverTime := time.Since(start)
-	fmt.Println("encryptedIds is ", encryptedIds)
 
 	// client decrypt and return result
 	start = time.Now()

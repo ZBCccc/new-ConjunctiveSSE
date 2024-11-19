@@ -138,13 +138,16 @@ func Base64ToBigInt(base64Str string) (*big.Int, error) {
 
 // RemoveElement 删除slice中的特定元素
 func RemoveElement(slice []string, target string) []string {
-	for i, v := range slice {
+	// 遍历slice，删除target元素
+	result := make([]string, len(slice))
+	copy(result, slice)
+	for i, v := range result {
 		if v == target {
-			slice = append(slice[:i], slice[i+1:]...)
-			break
+			result = append(result[:i], result[i+1:]...)
+			return result
 		}
 	}
-	return slice
+	return result
 }
 
 // WriteResult 将结果写入CSV文件
@@ -210,8 +213,7 @@ func WriteResultToFile(filePath string, data [][]string) error {
 }
 
 func BytesXOR(b1, b2 []byte) []byte {
-	// b1, b2的长度均为32字节
-
+	// b1, b2的长度相等
 	result := make([]byte, len(b1))
 	copy(result, b1)
 

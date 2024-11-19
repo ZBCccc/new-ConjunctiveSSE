@@ -75,7 +75,7 @@ func main() {
 		})
 		keywordsPair[i] = shuffledKeywords[:2]
 	}
-	utils.WriteResultToFile("keywords_2.txt", keywordsPair)
+	utils.WriteResultToFile("cmd/HDXT/configs/keywords_2.txt", keywordsPair)
 
 	// 从keywordsList中随机选择6个关键词，共形成numPairs对
 	keywordsSix := make([][]string, 10000)
@@ -90,5 +90,5 @@ func main() {
 		})
 		keywordsSix[i] = shuffledKeywords[:6]
 	}
-	utils.WriteResultToFile("keywords_6.txt", keywordsSix)
+	utils.WriteResultToFile("cmd/HDXT/configs/keywords_6.txt", keywordsSix)
 }

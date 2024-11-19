@@ -5,9 +5,9 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
 	"log"
 	"math/big"
-	"strings"
 )
 
 // mitraEncrypt generates encrypted address and value for the given keyword and id.
@@ -24,7 +24,7 @@ func mitraEncrypt(hdxt *HDXT, keyword string, id string, operation int) (string,
 	hdxt.FileCnt[keyword]++
 	k := hdxt.Mitra.Key
 
-	wWc := append([]byte(keyword), big.NewInt(int64(hdxt.FileCnt[keyword])).Bytes()...)
+	wWc := append([]byte(keyword+"#"), big.NewInt(int64(hdxt.FileCnt[keyword])).Bytes()...)
 
 	// address = PRF(kt, w||wc||0)
 	address, err := utils.PrfF(k, append(wWc, byte(0)))
@@ -93,7 +93,7 @@ type UTok struct {
 
 func auhmeGenUpd(hdxt *HDXT, op Operation, ku string, vu int) (*UTok, error) {
 	k1, k2, k3 := hdxt.Auhme.Keys[0], hdxt.Auhme.Keys[1], hdxt.Auhme.Keys[2]
-	cnt, t, delta := hdxt.Auhme.Deltas.cnt, hdxt.Auhme.Deltas.t, hdxt.Auhme.Deltas.delta
+	cnt := hdxt.Auhme.Deltas.cnt
 	tok := make(map[string]string)
 	if op == Add {
 		// l ← F (k1, ku )
@@ -113,17 +113,16 @@ func auhmeGenUpd(hdxt *HDXT, op Operation, ku string, vu int) (*UTok, error) {
 		return &UTok{tok, op}, nil
 	}
 
-	var err error
-	t, err = CInsert(k1, ku, vu, t)
+	err := CInsert(hdxt, ku, vu)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(t)+1 < delta {
-		hdxt.Auhme.Deltas.s, hdxt.Auhme.Deltas.t = nil, t
+	if len(hdxt.Auhme.Deltas.t)+1 < hdxt.Auhme.Deltas.delta {
+		hdxt.Auhme.Deltas.s = nil
 		return nil, nil
 	} else {
-		s := make([]string, 0)
+		s := make([]string, 0, len(hdxt.AuhmeCipherList))
 		for k := range hdxt.AuhmeCipherList {
 			s = append(s, k)
 		}
@@ -138,14 +137,15 @@ func auhmeGenUpd(hdxt *HDXT, op Operation, ku string, vu int) (*UTok, error) {
 }
 
 // CInsert inserts a key-value pair into the map. If the key already exists, it deletes the existing key-value pair.
-func CInsert(k1 []byte, k string, v int, t map[string]int) (map[string]int, error) {
+func CInsert(hdxt *HDXT, k string, v int) error {
+	k1 := hdxt.Auhme.Keys[0]
 	l, err := utils.FAesni(k1, []byte(k), 1)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	delete(t, base64.StdEncoding.EncodeToString(l))
-	t[base64.StdEncoding.EncodeToString(l)] = v
-	return t, nil
+	delete(hdxt.Auhme.Deltas.t, base64.StdEncoding.EncodeToString(l))
+	hdxt.Auhme.Deltas.t[base64.StdEncoding.EncodeToString(l)] = v
+	return nil
 }
 
 func CEvict(hdxt *HDXT, s []string) (tok map[string]string, err error) {
@@ -153,35 +153,39 @@ func CEvict(hdxt *HDXT, s []string) (tok map[string]string, err error) {
 	cnt, t := hdxt.Auhme.Deltas.cnt, hdxt.Auhme.Deltas.t
 	tok = make(map[string]string)
 	for _, l := range s {
+		lBytes, err := base64.StdEncoding.DecodeString(l)
+		if err != nil {
+			return nil, err
+		}
 		if _, ok := t[l]; !ok {
-			u1, err := utils.FAesni(k3, append([]byte(l), byte(cnt)), 1)
+			u1, err := utils.FAesni(k3, append(lBytes, byte(cnt)), 1)
 			if err != nil {
 				return nil, err
 			}
-			u2, err := utils.FAesni(k3, append([]byte(l), byte(cnt+1)), 1)
+			u2, err := utils.FAesni(k3, append(lBytes, byte(cnt+1)), 1)
 			if err != nil {
 				return nil, err
 			}
-			tok[l] = base64.StdEncoding.EncodeToString(utils.Xor(u1, u2))
+			tok[l] = base64.StdEncoding.EncodeToString(utils.BytesXOR(u1, u2))
 		}
 		b := t[l]
-		u1, err := utils.FAesni(k2, append([]byte(l), byte(b)), 1)
+		u1, err := utils.FAesni(k2, append(lBytes, byte(b)), 1)
 		if err != nil {
 			return nil, err
 		}
-		u2, err := utils.FAesni(k2, append([]byte(l), byte(1-b)), 1)
+		u2, err := utils.FAesni(k2, append(lBytes, byte(1-b)), 1)
 		if err != nil {
 			return nil, err
 		}
-		u3, err := utils.FAesni(k3, append([]byte(l), byte(cnt)), 1)
+		u3, err := utils.FAesni(k3, append(lBytes, byte(cnt)), 1)
 		if err != nil {
 			return nil, err
 		}
-		u4, err := utils.FAesni(k3, append([]byte(l), byte(cnt+1)), 1)
+		u4, err := utils.FAesni(k3, append(lBytes, byte(cnt+1)), 1)
 		if err != nil {
 			return nil, err
 		}
-		tok[l] = base64.StdEncoding.EncodeToString(utils.Xor(utils.Xor(u1, u2), utils.Xor(u3, u4)))
+		tok[l] = base64.StdEncoding.EncodeToString(utils.BytesXOR(utils.BytesXOR(u1, u2), utils.BytesXOR(u3, u4)))
 	}
 	return tok, nil
 }
@@ -233,11 +237,10 @@ func xor(s1, s2 string) string {
 }
 
 func auhmeGenKey(hdxt *HDXT, mp map[string]int) (*dk, error) {
-	k1, k2, k3 := hdxt.Auhme.Keys[0], hdxt.Auhme.Keys[1], hdxt.Auhme.Keys[2]
-	cnt := hdxt.Auhme.Deltas.cnt
+	k1, k2, k3, cnt := hdxt.Auhme.Keys[0], hdxt.Auhme.Keys[1], hdxt.Auhme.Keys[2], hdxt.Auhme.Deltas.cnt
 	L := make([]string, 0, len(mp))
 	beta := 1
-	xors := strings.Repeat("0", 24)
+	xors := make([]byte, 16)
 	for k, v := range mp {
 		l, err := utils.FAesni(k1, []byte(k), 1)
 		if err != nil {
@@ -259,7 +262,7 @@ func auhmeGenKey(hdxt *HDXT, mp map[string]int) (*dk, error) {
 			if err != nil {
 				return nil, err
 			}
-			xors = xor(xors, base64.StdEncoding.EncodeToString(utils.Xor(v1, v2)))
+			xors = utils.BytesXOR(xors, utils.BytesXOR(v1, v2))
 		} else if cv == -1 {
 			v1, err := utils.FAesni(k2, append(l, byte(v)), 1)
 			if err != nil {
@@ -269,7 +272,7 @@ func auhmeGenKey(hdxt *HDXT, mp map[string]int) (*dk, error) {
 			if err != nil {
 				return nil, err
 			}
-			xors = xor(xors, base64.StdEncoding.EncodeToString(utils.Xor(v1, v2)))
+			xors = utils.BytesXOR(xors, utils.BytesXOR(v1, v2))
 		}
 	}
 	randomBytes := make([]byte, 16)
@@ -279,7 +282,7 @@ func auhmeGenKey(hdxt *HDXT, mp map[string]int) (*dk, error) {
 	r := base64.StdEncoding.EncodeToString(randomBytes)
 	if beta == 1 {
 		h := sha256.New()
-		h.Write([]byte(r + xors))
+		h.Write(append(randomBytes, xors...))
 		d := base64.StdEncoding.EncodeToString(h.Sum(nil))
 		return &dk{L, r, d}, nil
 	}
@@ -309,12 +312,26 @@ func CFind(hdxt *HDXT, k string) (int, error) {
 }
 
 func auhmeQuery(hdxt *HDXT, dk *dk) int {
-	xors := strings.Repeat("0", 24)
+	xors := make([]byte, 16)
 	for _, l := range dk.L {
-		xors = xor(xors, hdxt.AuhmeCipherList[l])
+		if _, ok := hdxt.AuhmeCipherList[l]; !ok {
+			fmt.Println("l not found in AuhmeCipherList")
+			return 0
+		}
+		lBytes, err := base64.StdEncoding.DecodeString(hdxt.AuhmeCipherList[l])
+		if err != nil {
+			fmt.Println("lbytes decode error")
+			return 0
+		}
+		xors = utils.BytesXOR(xors, lBytes)
 	}
 	h := sha256.New()
-	h.Write([]byte(dk.r + xors))
+	rBytes, err := base64.StdEncoding.DecodeString(dk.r)
+	if err != nil {
+		fmt.Println("rbytes decode error")
+		return 0
+	}
+	h.Write(append(rBytes, xors...))
 	d := base64.StdEncoding.EncodeToString(h.Sum(nil))
 	if d == dk.d {
 		return 1
@@ -326,7 +343,7 @@ func mitraGenTrapdoor(hdxt *HDXT, keyword string) ([]string, error) {
 	tList := make([]string, 0, hdxt.FileCnt[keyword])
 	for i := 1; i <= hdxt.FileCnt[keyword]; i++ {
 		//Ti = PrfF(kt, w||i||0)
-		address, err := utils.PrfF(hdxt.Mitra.Key, append(append([]byte(keyword), big.NewInt(int64(i)).Bytes()...), byte(0)))
+		address, err := utils.PrfF(hdxt.Mitra.Key, append(append([]byte(keyword+"#"), big.NewInt(int64(i)).Bytes()...), byte(0)))
 		if err != nil {
 			return nil, err
 		}
@@ -348,8 +365,8 @@ func mitraServerSearch(hdxt *HDXT, tList []string) []string {
 func mitraDecrypt(hdxt *HDXT, keyword string, encs []string) ([]string, error) {
 	dec := make([]string, 0, len(encs))
 	for i, e := range encs {
-		laber, err := utils.PrfF(hdxt.Mitra.Key, append(append([]byte(keyword), big.NewInt(int64(i+1)).Bytes()...), byte(1)))
-		if err != nil {	
+		laber, err := utils.PrfF(hdxt.Mitra.Key, append(append([]byte(keyword+"#"), big.NewInt(int64(i+1)).Bytes()...), byte(1)))
+		if err != nil {
 			return nil, err
 		}
 		eBytes, err := base64.StdEncoding.DecodeString(e)

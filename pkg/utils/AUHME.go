@@ -3,15 +3,23 @@ package utils
 import (
 	"crypto/aes"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 )
 
 // FAesni 使用AES-ECB模式加密输入，并根据选项处理结果
 func FAesni(key []byte, input []byte, option int) ([]byte, error) {
+	// 参数验证
+	if key == nil || input == nil {
+		return nil, errors.New("key or input cannot be nil")
+	}
+	if option != 1 && option != 2 {
+		return nil, errors.New("invalid option: must be 1 or 2")
+	}
 	// 创建AES加密器
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, err	
+		return nil, err
 	}
 
 	// 计算需要的块数
@@ -57,7 +65,8 @@ func Xor(s1, s2 []byte) []byte {
 		return nil
 	}
 
-	result := s1
+	result := make([]byte, len(s1))
+    copy(result, s1)
 	for i := 0; i < len(result); i++ {
 		result[i] ^= s2[i]
 	}
