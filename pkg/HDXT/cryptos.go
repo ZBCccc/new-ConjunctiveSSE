@@ -47,19 +47,20 @@ func mitraEncrypt(hdxt *HDXT, keyword string, id string, operation int) (string,
 func auhmeEncrypt(hdxt *HDXT, keyword string, id string, va int) (string, string, error) {
 	// label = PRF(k1, w||id)
 	k1, k2, k3 := hdxt.Auhme.Keys[0], hdxt.Auhme.Keys[1], hdxt.Auhme.Keys[2]
-	wId := []byte(keyword + id)
+	wid := keyword + "#" + id
+	wId := []byte(wid)
 	label, err := utils.FAesni(k1, wId, 1)
 	if err != nil {
 		return "", "", err
 	}
 
-	v := append([]byte(label), byte(va))
+	v := append(label, byte(va))
 	enc1, err := utils.FAesni(k2, v, 1)
 	if err != nil {
 		return "", "", err
 	}
 
-	v = append([]byte(label), byte(0))
+	v = append(label, byte(0))
 	enc2, err := utils.FAesni(k3, v, 1)
 	if err != nil {
 		return "", "", err
@@ -314,10 +315,6 @@ func CFind(hdxt *HDXT, k string) (int, error) {
 func auhmeQuery(hdxt *HDXT, dk *dk) int {
 	xors := make([]byte, 16)
 	for _, l := range dk.L {
-		if _, ok := hdxt.AuhmeCipherList[l]; !ok {
-			fmt.Println("l not found in AuhmeCipherList")
-			return 0
-		}
 		lBytes, err := base64.StdEncoding.DecodeString(hdxt.AuhmeCipherList[l])
 		if err != nil {
 			fmt.Println("lbytes decode error")
@@ -374,7 +371,14 @@ func mitraDecrypt(hdxt *HDXT, keyword string, encs []string) ([]string, error) {
 			return nil, err
 		}
 		idOp := utils.BytesXOR(eBytes, laber)
-		dec = append(dec, string(idOp[:len(idOp)-1]))
+		var end int
+		for end = 0; end < len(idOp); end++ {
+			if idOp[end] == 0 || idOp[end] == 0x80 {
+				break
+			}
+		}
+		id := string(idOp[:end])
+		dec = append(dec, id)
 	}
 	return dec, nil
 }
@@ -384,7 +388,7 @@ func auhmeClientSearchStep1(hdxt *HDXT, w1Ids []string, q []string) ([]*dk, erro
 	for _, id := range w1Ids {
 		I := make(map[string]int, len(q))
 		for _, w := range q {
-			I[w+id] = 1
+			I[w+"#"+id] = 1
 		}
 		dk, err := auhmeGenKey(hdxt, I)
 		if err != nil {

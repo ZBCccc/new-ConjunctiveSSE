@@ -337,14 +337,14 @@ func (hdxt *HDXT) Encrypt(id string, keywords []string, operation Operation) (ti
 				hdxt.MitraCipherList[address] = val
 
 				// auhme part
-				utok, err = auhmeGenUpd(hdxt, Add, keyword+id, 1)
+				utok, err = auhmeGenUpd(hdxt, Add, keyword+"#"+id, 1)
 				if err != nil {
 					log.Println("Error in auhmeGenUpd:", err)
 					return 0, nil, err
 				}
 			} else {
 				// auhme part
-				utok, err = auhmeGenUpd(hdxt, Add, keyword+id, 0)
+				utok, err = auhmeGenUpd(hdxt, Add, keyword+"#"+id, 0)
 				if err != nil {
 					log.Println("Error in auhmeGenUpd:", err)
 					return 0, nil, err
@@ -421,7 +421,7 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 	serverTimeTotal := time.Duration(0)
 
 	// 循环搜索
-	keywordsList = keywordsList[:1]
+	// keywordsList = keywordsList[:1]
 	for _, keywords := range keywordsList {
 		// 单关键词搜索, mitra part
 		// 选择查询频率最低的关键字
@@ -437,28 +437,25 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Println("w1Ids:", w1Ids)
 		clientTimeTotal += trapdoorTime
 		serverTimeTotal += serverTime
 
 		// auhme part
 		// clien search step 1
 		q := utils.RemoveElement(keywords, w1)
-		fmt.Println("q:", q)
 		start := time.Now()
 		dkList, err := auhmeClientSearchStep1(hdxt, w1Ids, q)
 		if err != nil {
 			log.Fatal(err)
 		}
 		clientTimeTotal += time.Since(start)
-		fmt.Println("dkList's length:", len(dkList))
-		fmt.Println("dkList[0]:", dkList[0].d, dkList[0].r, dkList[0].L)
+		// fmt.Println("dkList's length:", len(dkList))
 
 		// server search step
 		start = time.Now()
 		posList := auhmeServerSearch(hdxt, dkList)
 		serverTimeTotal += time.Since(start)
-		fmt.Println("posList's length:", len(posList))
+		// fmt.Println("posList's length:", len(posList))
 
 		// client search step 2
 		start = time.Now()

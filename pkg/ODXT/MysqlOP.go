@@ -13,7 +13,7 @@ import (
 // MySQLSetup sets up the MySQL database
 func MySQLSetup(tableName string) (*sql.DB, error) {
 	// Connect to the MySQL database
-	db, err := sql.Open("mysql", "root:123456@tcp(localhost:3308)/ODXT")
+	db, err := sql.Open("mysql", "root:123456@tcp(localhost:3306)/ODXT")
 	if err != nil {
 		log.Fatal(err)
 		return nil, err

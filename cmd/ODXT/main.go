@@ -69,7 +69,7 @@ func TestODXT(cfg Config) error {
 		t1 := time.Now()
 		odxt.CiphertextGenPhase(cfg.Db)
 		t2 := time.Since(t1)
-		fmt.Println("SearchPhase time:", t2)
+		fmt.Println("CiphertextGenPhase time:", t2)
 	}
 	if strings.Contains(cfg.Phase, "s") {
 		t1 := time.Now()

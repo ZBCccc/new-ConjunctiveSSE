@@ -1,9 +1,9 @@
 {
     "db": "Crime_USENIX_REV",
-    "phase": "s",
+    "phase": "cs",
     "group": "keywords_2.txt",
     "del_rate": 0,
-    "db_setup_from_files": true,
+    "db_setup_from_files": false,
     "xset_path": "./result/Update/ODXT/Crime_USENIX_REV_2024-11-11_06-18-20_XSet.bin",
     "update_cnt_path": "./result/Update/ODXT/Crime_USENIX_REV_2024-11-11_06-18-20_UpdateCnt.json"
 }
