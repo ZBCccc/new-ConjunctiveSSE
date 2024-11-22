@@ -125,10 +125,6 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 	return nil
 }
 
-// type volume struct {
-// 	mitraVolume int
-// 	auhmeVolume int
-// }
 
 func (hdxt *HDXT) SetupPhase() error {
 	// 获取MongoDB数据库
