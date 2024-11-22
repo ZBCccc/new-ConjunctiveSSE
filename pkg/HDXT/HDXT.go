@@ -80,7 +80,7 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 			hdxt.Auhme.Keys[i] = key
 		}
 	} else {
-		// 读取私钥	
+		// 读取私钥
 		hdxt.Mitra.Key, hdxt.Auhme.Keys, err = utils.HdxtReadKeys("./cmd/HDXT/configs/keys.txt")
 		if err != nil {
 			log.Println("Error reading keys:", err)
@@ -125,7 +125,6 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 	return nil
 }
 
-
 func (hdxt *HDXT) SetupPhase() error {
 	// 获取MongoDB数据库
 	plaintextDB := hdxt.PlaintextDB
@@ -134,7 +133,6 @@ func (hdxt *HDXT) SetupPhase() error {
 	// 初始化
 	setupTimeList := make([]time.Duration, 0, 1000000)
 	// tokenList := make([]*UTok, 0, 1000000)
-	
 
 	// 从MongoDB数据库中获取名为"id_keywords"的集合
 	collection := plaintextDB.Collection("id_keywords")
@@ -276,7 +274,7 @@ func (hdxt *HDXT) Setup(id string, keywords []string, operation Operation) (time
 				hdxt.FileCnt[keyword] = 0
 			}
 			start := time.Now()
-			
+
 			// OXT Part
 			address, val, err := mitraEncrypt(hdxt, keyword, id, int(operation))
 			if err != nil {
@@ -437,7 +435,7 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 		serverTimeTotal += serverTime
 
 		// auhme part
-		// clien search step 1
+		// client search step 1
 		q := utils.RemoveElement(keywords, w1)
 		start := time.Now()
 		dkList, err := auhmeClientSearchStep1(hdxt, w1Ids, q)

@@ -213,12 +213,20 @@ func WriteResultToFile(filePath string, data [][]string) error {
 }
 
 func BytesXOR(b1, b2 []byte) []byte {
-	// b1, b2的长度相等
-	result := make([]byte, len(b1))
-	copy(result, b1)
+	// 判断最长的切片
+	var longer, shorter []byte
+	if len(b1) > len(b2) {
+		longer, shorter = b1, b2
+	} else {
+		longer, shorter = b2, b1
+	}
 
-	for i := 0; i < len(b1); i++ {
-		result[i] = b1[i] ^ b2[i]
+	result := make([]byte, len(longer))
+	copy(result, longer)
+
+	// 将较短的切片异或到较长切片中
+	for i := 0; i < len(shorter); i++ {
+		result[i] ^= shorter[i]
 	}
 
 	return result
