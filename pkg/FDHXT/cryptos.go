@@ -60,7 +60,7 @@ func (fdxt *FDXT) ClientSearchStep1(q []string) ([]*TKL, []string, [][]*big.Int,
 	xtkList := make([][]*big.Int, fdxt.Count[w1].max+1)
 	// fmt.Printf("Initial w1: %s, max: %d\n", w1, fdxt.Count[w1].max)
 	qt := utils.RemoveElement(q, w1)
-	for j := fdxt.Count[w1].max; j >= 1; j-- {
+	for j := 1; j <= fdxt.Count[w1].max; j++ {
 		msg := make([]byte, 0, len(w1)+len(big.NewInt(int64(j)).Bytes())+1)
 		msg = append(msg, []byte(w1)...)
 		msg = append(msg, big.NewInt(int64(j)).Bytes()...)
@@ -147,16 +147,17 @@ func (fdxt *FDXT) ClientSearchStep2(w1 string, ws []string, resList []*RES) ([]s
 		}
 		idOp := utils.BytesXOR(valBytes, dec1)
 		op := Operation(idOp[len(idOp)-1])
-		var end int
-		for end = 0; end < len(idOp); end++ {
-			if idOp[end] == 0 || idOp[end] == 0x80 {
-				break
-			}
-		}
-		id := string(idOp[:end])
-		// fmt.Println("id:", id)
-		// fmt.Println("op:", op)
-		// fmt.Println("cnt:", cnt)
+		// var end int
+		// for end = 0; end < len(idOp); end++ {
+		// 	if idOp[end] == 0 || idOp[end] == 0x80 {
+		// 		break
+		// 	}
+		// }
+		// id := string(idOp[:end])
+		id := string(idOp[:len(idOp)-1])
+		fmt.Println("id:", id)
+		fmt.Println("op:", op)
+		fmt.Println("cnt:", cnt)
 		if op == Add && cnt == len(ws) {
 			IDL = append(IDL, id)
 		}

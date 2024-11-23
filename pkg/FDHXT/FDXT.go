@@ -153,6 +153,7 @@ func (fdxt *FDXT) UpdatePhase(dbName string) error {
 		log.Println("Error writing result to file:", err)
 		return err
 	}
+	
 	return nil
 }
 
