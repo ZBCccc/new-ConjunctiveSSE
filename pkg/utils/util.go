@@ -14,12 +14,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	_ "github.com/bits-and-blooms/bloom/v3"
+	"github.com/bits-and-blooms/bloom/v3"
 	mapset "github.com/deckarep/golang-set/v2"
 )
 
 type Operation int
-
 const (
 	Del Operation = iota // 0
 	Add                  // 1
@@ -348,4 +347,44 @@ func SaveFileCntToFile(fileCnt map[string]int, filename string) error {
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(fileCnt)
+}
+
+
+
+
+// 保存 Bloom filter 到文件
+func SaveBloomFilterToFile(filter *bloom.BloomFilter, filename string) error {
+	// 创建文件，如果所在目录不存在，则先创建目录，再创建文件
+	dir := filepath.Dir(filename)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		os.MkdirAll(dir, 0755)
+	}
+
+	// 创建文件
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// 将 Bloom filter 写入文件
+	_, err = filter.WriteTo(file)
+	return err
+}
+
+// 从文件加载 Bloom filter
+func LoadBloomFilterFromFile(filename string) (*bloom.BloomFilter, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	filter := bloom.NewWithEstimates(1000000, 0.01) // 创建一个新的 Bloom filter，使用整数参数
+	_, err = filter.ReadFrom(file)
+	if err != nil {
+		return nil, err
+	}
+
+	return filter, nil
 }

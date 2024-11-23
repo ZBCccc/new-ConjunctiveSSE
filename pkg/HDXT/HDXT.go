@@ -57,7 +57,6 @@ var (
 	universeKeywordsNums int
 	universeKeywords     []string
 	universeIDs          []string
-	universeIDsNums      int
 )
 
 func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
@@ -111,7 +110,6 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 		return err
 	}
 	universeIDs = utils.RemoveDuplicates(universeIDs)
-	universeIDsNums = len(universeIDs)
 
 	// 初始化FileCnt
 	hdxt.Mitra.FileCnt = make(map[string]int, universeKeywordsNums)
@@ -232,7 +230,6 @@ func (hdxt *HDXT) SetupPhase() error {
 
 		// save to []
 		setupTimeList = append(setupTimeList, encryptTime)
-		// tokenList = append(tokenList, tokList...)
 		idList = append(idList, id)
 	}
 	saveTime = time.Now()
@@ -443,7 +440,6 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 			log.Fatal(err)
 		}
 		clientTimeTotal += time.Since(start)
-		// fmt.Println("dkList's length:", len(dkList))
 
 		// server search step
 		start = time.Now()
