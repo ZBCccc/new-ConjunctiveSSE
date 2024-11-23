@@ -57,8 +57,10 @@ func (fdxt *FDXT) ClientSearchStep1(q []string) ([]*TKL, []string, [][]*big.Int,
 		}
 	}
 	STKL := make([]string, 0, 1000)
-	xtkList := make([][]*big.Int, counter+1)
-	for j := counter; j >= 1; j-- {
+	xtkList := make([][]*big.Int, fdxt.Count[w1].max+1)
+	// fmt.Printf("Initial w1: %s, max: %d\n", w1, fdxt.Count[w1].max)
+	qt := utils.RemoveElement(q, w1)
+	for j := fdxt.Count[w1].max; j >= 1; j-- {
 		msg := make([]byte, 0, len(w1)+len(big.NewInt(int64(j)).Bytes())+1)
 		msg = append(msg, []byte(w1)...)
 		msg = append(msg, big.NewInt(int64(j)).Bytes()...)
@@ -67,10 +69,11 @@ func (fdxt *FDXT) ClientSearchStep1(q []string) ([]*TKL, []string, [][]*big.Int,
 			return nil, nil, nil, err
 		}
 		STKL = append(STKL, base64.StdEncoding.EncodeToString(addr))
-		qt := utils.RemoveElement(q, w1)
-		fmt.Println("qt:", qt)
+		// fmt.Printf("j=%d, len(q)=%d, len(qt)=%d, qt=%v\n", j, len(q), len(qt), qt)
 		xtkList[j] = make([]*big.Int, 0, len(qt))
+		// fmt.Printf("Before loop - j=%d, xtkList[j] initialized with length: %d\n", j, len(xtkList[j]))
 		for _, w := range qt {
+			// fmt.Printf("Processing w=%s for j=%d\n", w, j)
 			xtk1, err := utils.PrfFp(kx, []byte(w), p, g)
 			if err != nil {
 				return nil, nil, nil, err
@@ -81,7 +84,10 @@ func (fdxt *FDXT) ClientSearchStep1(q []string) ([]*TKL, []string, [][]*big.Int,
 			}
 			xtk := new(big.Int).Exp(g, new(big.Int).Mul(xtk1, xtk2), p)
 			xtkList[j] = append(xtkList[j], xtk)
+			// fmt.Printf("After adding xtk - j=%d, current xtkList[j] length: %d\n", j, len(xtkList[j]))
 		}
+		// fmt.Printf("Final len(xtkList[j]) for j=%d: %d\n", j, len(xtkList[j]))
+		// fmt.Println("len(xtkList[j]):", len(xtkList[j]))
 	}
 	return tklList, STKL, xtkList, nil
 }
@@ -109,9 +115,9 @@ func (fdxt *FDXT) ServerSearch(n int, tklList []*TKL, stklList []string, xtkList
 	for j, stkl := range stklList {
 		cnt := 1
 		val, alpha := fdxt.CDBTSet[stkl].val, fdxt.CDBTSet[stkl].alpha
-		fmt.Println("len(xtkList[j]):", len(xtkList[j]))
-		for k := 0; k < n-2; k++ {
-			xtk := xtkList[j][k]
+		// fmt.Println("len(xtkList[j]):", len(xtkList[j]))
+		for k := 0; k < n-1; k++ {
+			xtk := xtkList[j+1][k]
 			xtag := new(big.Int).Exp(xtk, alpha, p).Bytes()
 			if _, ok := fdxt.XSet[base64.StdEncoding.EncodeToString(xtag)]; ok {
 				cnt++
@@ -148,9 +154,9 @@ func (fdxt *FDXT) ClientSearchStep2(w1 string, ws []string, resList []*RES) ([]s
 			}
 		}
 		id := string(idOp[:end])
-		fmt.Println("id:", id)
-		fmt.Println("op:", op)
-		fmt.Println("cnt:", cnt)
+		// fmt.Println("id:", id)
+		// fmt.Println("op:", op)
+		// fmt.Println("cnt:", cnt)
 		if op == Add && cnt == len(ws) {
 			IDL = append(IDL, id)
 		}

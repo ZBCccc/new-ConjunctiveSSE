@@ -231,7 +231,7 @@ func (fdxt *FDXT) SearchPhase(tableName, fileName string) error {
 
 	clientTimeTotal := time.Duration(0)
 	serverTimeTotal := time.Duration(0)
-	keywordsList = keywordsList[:3]
+	keywordsList = keywordsList[:5]
 	for _, keywords := range keywordsList {
 		counter, w1 := math.MaxInt64, keywords[0]
 		for _, w := range keywords {
@@ -241,6 +241,7 @@ func (fdxt *FDXT) SearchPhase(tableName, fileName string) error {
 				counter = num
 			}
 		}
+		
 		// client search step 1
 		start := time.Now()
 		tkl, stkl, xtkList, err := fdxt.ClientSearchStep1(keywords)
