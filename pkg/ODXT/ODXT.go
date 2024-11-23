@@ -392,12 +392,6 @@ func QueryKeywordsFromFile(fileName string) [][]string {
 		log.Fatal("读取文件时出错:", err)
 	}
 
-	// 打印读取到的关键词列表（可选）
-	// fmt.Println("待搜索的关键词列表:")
-	// for i, keywords := range keywordsList {
-	// 	fmt.Printf("第%d组关键词: %v\n", i+1, keywords)
-	// }
-
 	return keywordsList
 }
 
@@ -410,9 +404,11 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	clientSearchTime := make([]time.Duration, 0, len(keywordsList)+1)
 	serverTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
+	clientTimeTotal := time.Duration(0)
+	serverTimeTotal := time.Duration(0)
 
 	// 循环搜索
-	keywordsList = keywordsList[:10]
+	// keywordsList = keywordsList[:10]
 	for _, keywords := range keywordsList {
 		trapdoorTime, serverTime, sEOpList := odxt.Search(keywords, tableName)
 
@@ -424,11 +420,13 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 		}
 		decryptTime := time.Since(start)
 		clientTime := trapdoorTime + decryptTime
+		clientTimeTotal += clientTime
+		serverTimeTotal += serverTime
 
 		// 将结果添加到结果列表
 		resultList = append(resultList, sIdList)
-		clientSearchTime = append(clientSearchTime, clientTime)
-		serverTimeList = append(serverTimeList, serverTime)
+		clientSearchTime = append(clientSearchTime, clientTimeTotal)
+		serverTimeList = append(serverTimeList, serverTimeTotal)
 		resultLengthList = append(resultLengthList, len(sIdList))
 	}
 

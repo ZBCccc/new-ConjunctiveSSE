@@ -155,9 +155,9 @@ func (fdxt *FDXT) ClientSearchStep2(w1 string, ws []string, resList []*RES) ([]s
 		// }
 		// id := string(idOp[:end])
 		id := string(idOp[:len(idOp)-1])
-		fmt.Println("id:", id)
-		fmt.Println("op:", op)
-		fmt.Println("cnt:", cnt)
+		// fmt.Println("id:", id)
+		// fmt.Println("op:", op)
+		// fmt.Println("cnt:", cnt)
 		if op == Add && cnt == len(ws) {
 			IDL = append(IDL, id)
 		}
