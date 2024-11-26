@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// 定义一个类型
+// Config 定义一个类型
 type Config struct {
 	Db               string `json:"db"`
 	Phase            string `json:"phase"`
@@ -57,7 +57,11 @@ func TestODXT(cfg Config) error {
 
 	if strings.Contains(cfg.Phase, "c") {
 		t1 := time.Now()
-		odxt.CiphertextGenPhase(cfg.Db)
+		err = odxt.CiphertextGenPhase(cfg.Db)
+		if err != nil {
+			fmt.Println("CiphertextGenPhase error:", err)
+			return err
+		}
 		t2 := time.Since(t1)
 		fmt.Println("CiphertextGenPhase time:", t2)
 	}

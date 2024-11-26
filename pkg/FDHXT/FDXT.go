@@ -89,7 +89,7 @@ func (fdxt *FDXT) Setup(dbName string) error {
 	return nil
 }
 
-func (fdxt *FDXT) UpdatePhase(dbName string) error {
+func (fdxt *FDXT) UpdatePhase() error {
 	// 获取MongoDB数据库
 	plaintextDB := PlaintextDB
 	defer plaintextDB.Client().Disconnect(context.Background())

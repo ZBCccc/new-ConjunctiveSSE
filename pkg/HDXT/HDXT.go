@@ -21,10 +21,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-const (
-	UploadListMaxLength = 200000
-)
-
 type Mitra struct {
 	Key     []byte
 	FileCnt map[string]int

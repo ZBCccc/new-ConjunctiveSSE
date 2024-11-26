@@ -18,38 +18,36 @@ func (odxt *ODXT) Encrypt(keyword string, ids []string, operation utils.Operatio
 	for _, id := range ids {
 		start := time.Now()
 		odxt.UpdateCnt[keyword]++
-		wWc := append([]byte(keyword), big.NewInt(int64(odxt.UpdateCnt[keyword])).Bytes()...)
+		msgLen := len(keyword) + len(big.NewInt(int64(odxt.UpdateCnt[keyword])).Bytes())
+		wWc := make([]byte, 0, msgLen)
+		wWc = append(wWc, []byte(keyword)...)
+		wWc = append(wWc, big.NewInt(int64(odxt.UpdateCnt[keyword])).Bytes()...)
 
 		// address = PRF(kt, w||wc||0)
 		address, err := utils.PrfF(kt, append(wWc, byte(0)))
 		if err != nil {
-			log.Println(err)
 			return encryptedTime, err
 		}
 
 		// val = PRF(kt, w||wc||1) xor (id||op)
 		val, err := utils.PrfF(kt, append(wWc, byte(1)))
 		if err != nil {
-			log.Println(err)
 			return encryptedTime, err
 		}
 		val, err = utils.BytesXORWithOp(val, []byte(id), int(operation))
 		if err != nil {
-			log.Println(err)
 			return encryptedTime, err
 		}
 
 		// alpha = Fp(ky, id||op) * Fp(kz, w||wc)^-1
 		alpha, alpha1, err := utils.ComputeAlpha(ky, kz, []byte(id), int(operation), wWc, p, g)
 		if err != nil {
-			log.Println(err)
 			return encryptedTime, err
 		}
 
 		// xtag = g^{Fp(Kx, w)*Fp(Ky, id||op)} mod p
 		C, err := utils.PrfFp(kx, []byte(keyword), p, g)
 		if err != nil {
-			log.Println(err)
 			return encryptedTime, err
 		}
 		A := new(big.Int).Mul(C, alpha1)
@@ -66,7 +64,7 @@ func (odxt *ODXT) Encrypt(keyword string, ids []string, operation utils.Operatio
 }
 
 // Search 搜索，生成search token
-func (odxt *ODXT) Search(q []string, tableName string) (time.Duration, time.Duration, []utils.SEOp) {
+func (odxt *ODXT) Search(q []string) (time.Duration, time.Duration, []utils.SEOp) {
 	start := time.Now()
 	// 生成陷门
 	stokenList, xtokenList := odxt.ClientSearchStep1(q)
@@ -167,7 +165,7 @@ func (odxt *ODXT) Decrypt(q []string, sEOpList []utils.SEOp) ([]string, error) {
 		for i := 0; i < 31; i++ {
 			id[i] = tmp[i] ^ val[i]
 		}
-		var op utils.Operation = utils.Operation(tmp[31] ^ val[31])
+		var op = utils.Operation(tmp[31] ^ val[31])
 		if op == utils.Add && cnt == len(q) {
 			sIdList = append(sIdList, base64.StdEncoding.EncodeToString(id))
 		} else if op == utils.Del && cnt > 0 {

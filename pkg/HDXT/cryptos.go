@@ -16,6 +16,7 @@ import (
 //   - keyword: the keyword to encrypt
 //   - id: document identifier
 //   - operation: operation type (should be documented what values are valid)
+//
 // Returns:
 //   - string: base64 encoded address
 //   - string: base64 encoded value
@@ -102,11 +103,11 @@ func auhmeGenUpd(hdxt *HDXT, op Operation, ku string, vu int) (*UTok, error) {
 		if err != nil {
 			return nil, err
 		}
-		tok1, err := utils.FAesni(k2, append([]byte(l), byte(vu)), 1)
+		tok1, err := utils.FAesni(k2, append(l, byte(vu)), 1)
 		if err != nil {
 			return nil, err
 		}
-		tok2, err := utils.FAesni(k3, append([]byte(l), byte(cnt)), 1)
+		tok2, err := utils.FAesni(k3, append(l, byte(cnt)), 1)
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +133,7 @@ func auhmeGenUpd(hdxt *HDXT, op Operation, ku string, vu int) (*UTok, error) {
 			return nil, err
 		}
 		CClear(hdxt)
-		hdxt.Auhme.Deltas.s, hdxt.Auhme.Deltas.cnt = nil, cnt + 1
+		hdxt.Auhme.Deltas.s, hdxt.Auhme.Deltas.cnt = nil, cnt+1
 		return &UTok{tok, Edit}, nil
 	}
 }

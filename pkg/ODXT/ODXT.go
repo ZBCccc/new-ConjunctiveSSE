@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"math"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -34,6 +35,10 @@ var (
 	PlaintextDB *mongo.Database
 )
 
+const (
+	keysPath = "./cmd/ODXT/configs/keys.txt"
+)
+
 type ODXT struct {
 	Keys      [4][]byte
 	UpdateCnt map[string]int
@@ -45,12 +50,6 @@ type UpdatePayload struct {
 	Address string
 	Val     string
 	Alpha   string
-}
-
-type SEOp struct {
-	J    int
-	Sval []byte
-	Cnt  int
 }
 
 func ReadKeys(fileName string) [4][]byte {
@@ -93,7 +92,7 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 		}
 	} else {
 		// 读取私钥
-		odxt.Keys = ReadKeys("./cmd/ODXT/configs/keys.txt")
+		odxt.Keys = ReadKeys(keysPath)
 	}
 
 	// 初始化 UpdateCnt
@@ -101,7 +100,11 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 
 	// 初始化 g 和 p
 	g = big.NewInt(65537)
-	p, _ = new(big.Int).SetString("69445180235231407255137142482031499329548634082242122837872648805446522657159", 10)
+	var ok bool
+	p, ok = new(big.Int).SetString("69445180235231407255137142482031499329548634082242122837872648805446522657159", 10)
+	if !ok {
+		return fmt.Errorf("invalid prime number")
+	}
 
 	// 初始化 XSet 和 TSet
 	odxt.XSet = make(map[string]int)
@@ -111,53 +114,56 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 	var err error
 	PlaintextDB, err = Database.MongoDBSetup(dbName)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 		return err
 	}
 	return nil
 }
 
-func (odxt *ODXT) CiphertextGenPhase(dbName string) {
-	// 获取MongoDB数据库
-	defer PlaintextDB.Client().Disconnect(context.Background())
+func (odxt *ODXT) CiphertextGenPhase(dbName string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+    defer cancel()
+    defer PlaintextDB.Client().Disconnect(ctx)
 
-	// 初始化
-	encryptTimeList := make([]time.Duration, 0, 1000000)
-	keywordList := make([]string, 0, 1000000)
-	volumeList := make([]int, 0, 1000000)
+    collection := PlaintextDB.Collection("id_keywords")
+    
+    // 先获取总数以预分配空间
+    count, err := collection.CountDocuments(ctx, bson.D{})
+    if err != nil {
+        return fmt.Errorf("count documents failed: %w", err)
+    }
+    
+    // 使用实际数量预分配
+    encryptTimeList := make([]time.Duration, 0, count)
+    keywordList := make([]string, 0, count)
+    volumeList := make([]int, 0, count)
 
-	// 从MongoDB数据库中获取名为"id_keywords"的集合
-	collection := PlaintextDB.Collection("id_keywords")
+    opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(3000)
+    cur, err := collection.Find(ctx, bson.D{}, opts)
+    if err != nil {
+        return fmt.Errorf("find collection failed: %w", err)
+    }
+    defer cur.Close(ctx)
 
-	// 创建一个游标，设置不超时并每次获取1000条记录
-	ctx := context.TODO()
-	opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(1000)
-	cur, err := collection.Find(ctx, bson.D{}, opts)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// 关闭游标
-	defer cur.Close(ctx)
-
-	// 读取游标中的所有记录
-	var keywordIds []bson.M
-	if err = cur.All(ctx, &keywordIds); err != nil {
-		log.Fatal(err)
+    var keywordIds []bson.M
+    if err = cur.All(ctx, &keywordIds); err != nil {
+		return fmt.Errorf("read cursor failed: %w", err)
 	}
 
 	// 读取所有记录
 	for _, keywordId := range keywordIds {
 		valSet, ok := keywordId["val_set"].(primitive.A)
 		if !ok {
-			log.Fatal("val_set is not of type primitive.A")
+			log.Println("val_set is not of type primitive.A")
+			continue
 		}
-		var ids []string
+		ids := make([]string, 0, len(valSet))
 		for _, v := range valSet {
 			if str, ok := v.(string); ok {
 				ids = append(ids, str)
 			} else {
-				log.Fatal("val_set contains non-string value")
+				log.Println("val_set contains non-string value")
+				continue
 			}
 		}
 		ids = utils.RemoveDuplicates(ids)
@@ -165,7 +171,8 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 
 		encryptTime, err := odxt.Encrypt(keyword, ids, utils.Add)
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
+			continue
 		}
 
 		encryptTimeList = append(encryptTimeList, encryptTime)
@@ -189,11 +196,13 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) {
 	// 将结果写入文件
 	err = utils.WriteResultToCSV(resultpath, resultHeader, resultData)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return err
 	}
+	return nil
 }
 
-func (odxt *ODXT) DeletionPhaseWithSearch(del_rate int) {
+func (odxt *ODXT) DeletionPhaseWithSearch(delRate int) {
 
 }
 
@@ -208,10 +217,21 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
 	clientTimeTotal := time.Duration(0)
 	serverTimeTotal := time.Duration(0)
+	counterList := make([]int, 0, len(keywordsList)+1)
 
 	// 循环搜索
 	for _, keywords := range keywordsList {
-		trapdoorTime, serverTime, sEOpList := odxt.Search(keywords, tableName)
+		// find w1's lens
+		// 选择查询频率最低的关键字
+		counter := math.MaxInt
+		for _, w := range keywords {
+			num := odxt.UpdateCnt[w]
+			if num < counter {
+				counter = num
+			}
+		}
+		counterList = append(counterList, counter)
+		trapdoorTime, serverTime, sEOpList := odxt.Search(keywords)
 
 		// 解密密文获得最终结果
 		start := time.Now()
@@ -235,12 +255,12 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	resultpath := filepath.Join("result", "Search", "ODXT", tableName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
-	resultHeader := []string{"keyword", "clientSearchTime", "serverTime", "resultLength"}
+	resultHeader := []string{"keyword", "clientSearchTime", "serverTime", "resultLength", "counter"}
 
 	// 将结果数据整理成表格形式
 	resultData := make([][]string, len(resultList))
 	for i, keywords := range keywordsList {
-		resultData[i] = []string{strings.Join(keywords, "#"), clientSearchTime[i].String(), serverTimeList[i].String(), strconv.Itoa(resultLengthList[i])}
+		resultData[i] = []string{strings.Join(keywords, "#"), clientSearchTime[i].String(), serverTimeList[i].String(), strconv.Itoa(resultLengthList[i]), strconv.Itoa(counterList[i])}
 	}
 
 	// 将结果写入文件

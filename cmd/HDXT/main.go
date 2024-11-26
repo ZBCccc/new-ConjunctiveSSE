@@ -9,15 +9,12 @@ import (
 	"time"
 )
 
-// 定义一个类型
+// Config 定义一个类型
 type Config struct {
 	Db               string `json:"db"`
 	Phase            string `json:"phase"`
 	Group            string `json:"group"`
 	DelRate          int    `json:"del_rate"`
-	DBSetupFromFiles bool   `json:"db_setup_from_files"`
-	XSetPath         string `json:"xset_path"`
-	UpdateCntPath    string `json:"update_cnt_path"`
 }
 
 func main() {

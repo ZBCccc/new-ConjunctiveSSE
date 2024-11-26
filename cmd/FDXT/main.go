@@ -15,9 +15,6 @@ type Config struct {
 	Phase            string `json:"phase"`
 	Group            string `json:"group"`
 	DelRate          int    `json:"del_rate"`
-	DBSetupFromFiles bool   `json:"db_setup_from_files"`
-	XSetPath         string `json:"xset_path"`
-	UpdateCntPath    string `json:"update_cnt_path"`
 }
 
 func main() {
@@ -59,13 +56,21 @@ func TestFDXT(cfg Config) error {
 	}
 	if strings.Contains(cfg.Phase, "c") {
 		t1 := time.Now()
-		fdxt.UpdatePhase(cfg.Db)
+		err := fdxt.UpdatePhase()
+		if err != nil {
+			fmt.Println("err:", err)
+			return err
+		}
 		t2 := time.Since(t1)
 		fmt.Println("UpdatePhase time:", t2)
 	}
 	if strings.Contains(cfg.Phase, "s") {
 		t1 := time.Now()
-		fdxt.SearchPhase(cfg.Db, cfg.Group)
+		err := fdxt.SearchPhase(cfg.Db, cfg.Group)
+		if err != nil {
+			fmt.Println("err:", err)
+			return err
+		}
 		t2 := time.Since(t1)
 		fmt.Println("SearchPhase time:", t2)
 	}

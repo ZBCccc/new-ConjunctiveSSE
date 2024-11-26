@@ -14,11 +14,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bits-and-blooms/bloom/v3"
 	mapset "github.com/deckarep/golang-set/v2"
 )
 
 type Operation int
+
 const (
 	Del Operation = iota // 0
 	Add                  // 1
@@ -41,6 +41,52 @@ func PrfF(key, message []byte) ([]byte, error) {
 	// 计算消息的MAC
 	return h.Sum(nil), nil
 }
+
+func Fp(key, message []byte, p *big.Int) (*big.Int, error) {
+	// 生成一个HMAC对象
+	h := hmac.New(sha256.New, key)
+	// 写入消息
+	_, err := h.Write(message)
+	if err != nil {
+		return nil, err
+	}
+	// 计算消息的MAC
+	mac := h.Sum(nil)
+
+	// 将MAC结果转换为big.Int
+	res := new(big.Int).SetBytes(mac)
+
+	// 计算res % p
+	result := new(big.Int).Mod(res, p)
+
+	// 确保结果在Z_p^*中(1到p-1之间)
+	one := big.NewInt(1)
+	for result.Cmp(one) < 0 || result.Cmp(p) >= 0 || new(big.Int).GCD(nil, nil, result, p).Cmp(one) != 0 {
+		// 如果不满足条件,继续hash直到找到合适的值
+		h.Reset()
+		h.Write(mac)
+		mac = h.Sum(nil)
+		res.SetBytes(mac)
+		result = new(big.Int).Mod(res, p)
+	}
+
+	return result, nil
+}
+
+func ComputeExp(x *big.Int) (*big.Int, error) {
+	// 使用Curve25519的基点9作为生成元g
+	g := big.NewInt(9)
+	// 使用Curve25519的素数模数
+	p := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 255), big.NewInt(19))
+	
+	// 计算g^x mod p
+	result := new(big.Int).Exp(g, x, p)
+	
+	return result, nil
+}
+
+
+
 
 func PrfFp(key, message []byte, p, g *big.Int) (*big.Int, error) {
 	// 生成一个HMAC对象
@@ -123,18 +169,6 @@ func BytesXORWithOp(mac, id []byte, op int) ([]byte, error) {
 	return result, nil
 }
 
-func Base64ToBigInt(base64Str string) (*big.Int, error) {
-	// Base64解码
-	decodedBytes, err := base64.StdEncoding.DecodeString(base64Str)
-	if err != nil {
-		return nil, err
-	}
-
-	// 将[]byte转换为big.Int
-	bigIntValue := new(big.Int).SetBytes(decodedBytes)
-	return bigIntValue, nil
-}
-
 // RemoveElement 删除slice中的特定元素
 func RemoveElement(slice []string, target string) []string {
 	// 遍历slice，删除target元素
@@ -149,7 +183,7 @@ func RemoveElement(slice []string, target string) []string {
 	return result
 }
 
-// WriteResult 将结果写入CSV文件
+// WriteResultToCSV 将结果写入CSV文件
 func WriteResultToCSV(filePath string, headers []string, data [][]string) error {
 	// 创建文件，如果文件所在的目录不存在则创建
 	dir := filepath.Dir(filePath)
@@ -307,28 +341,7 @@ func QueryKeywordsFromFile(fileName string) [][]string {
 	return keywordsList
 }
 
-// SaveUpdateCntToFile 保存 UpdateCnt 到文件
-func SaveUpdateCntToFile(updateCnt map[string]int, filename string) error {
-	// 创建文件，如果所在目录不存在，则先创建目录，再创建文件
-	dir := filepath.Dir(filename)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		os.MkdirAll(dir, 0755)
-	}
-
-	// 创建文件
-	file, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// 将 UpdateCnt 写入Json文件
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(updateCnt)
-}
-
-// 保存 filecnt 到文件
+// SaveFileCntToFile 保存 filecnt 到文件
 func SaveFileCntToFile(fileCnt map[string]int, filename string) error {
 	// 创建文件，如果所在目录不存在，则先创建目录，再创建文件
 	dir := filepath.Dir(filename)
@@ -347,44 +360,4 @@ func SaveFileCntToFile(fileCnt map[string]int, filename string) error {
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(fileCnt)
-}
-
-
-
-
-// 保存 Bloom filter 到文件
-func SaveBloomFilterToFile(filter *bloom.BloomFilter, filename string) error {
-	// 创建文件，如果所在目录不存在，则先创建目录，再创建文件
-	dir := filepath.Dir(filename)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		os.MkdirAll(dir, 0755)
-	}
-
-	// 创建文件
-	file, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// 将 Bloom filter 写入文件
-	_, err = filter.WriteTo(file)
-	return err
-}
-
-// 从文件加载 Bloom filter
-func LoadBloomFilterFromFile(filename string) (*bloom.BloomFilter, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	filter := bloom.NewWithEstimates(1000000, 0.01) // 创建一个新的 Bloom filter，使用整数参数
-	_, err = filter.ReadFrom(file)
-	if err != nil {
-		return nil, err
-	}
-
-	return filter, nil
 }
