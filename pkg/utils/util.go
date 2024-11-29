@@ -24,6 +24,8 @@ const (
 	Add                  // 1
 )
 
+var one = big.NewInt(1)
+
 type SEOp struct {
 	J    int
 	Sval string
@@ -55,11 +57,11 @@ func Fp(key, message []byte, p *big.Int) (*big.Int, error) {
 
 	// 将MAC结果转换为big.Int
 	res := new(big.Int).SetBytes(mac)
-
+	pMinusOne := new(big.Int).Sub(p, big.NewInt(1))
 	// 计算res % p
-	result := new(big.Int).Mod(res, p)
+	result := new(big.Int).Mod(res, pMinusOne)
 
-	// 确保结果在Z_p^*中(1到p-1之间)
+	// 确保结果在Z_p^*中(1到p-2之间)
 	one := big.NewInt(1)
 	for result.Cmp(one) < 0 || result.Cmp(p) >= 0 || new(big.Int).GCD(nil, nil, result, p).Cmp(one) != 0 {
 		// 如果不满足条件,继续hash直到找到合适的值
@@ -78,15 +80,12 @@ func ComputeExp(x *big.Int) (*big.Int, error) {
 	g := big.NewInt(9)
 	// 使用Curve25519的素数模数
 	p := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 255), big.NewInt(19))
-	
+
 	// 计算g^x mod p
 	result := new(big.Int).Exp(g, x, p)
-	
+
 	return result, nil
 }
-
-
-
 
 func PrfFp(key, message []byte, p, g *big.Int) (*big.Int, error) {
 	// 生成一个HMAC对象
@@ -120,23 +119,30 @@ func PrfFp(key, message []byte, p, g *big.Int) (*big.Int, error) {
 func ComputeAlpha(Ky, Kz, id []byte, op int, wWc []byte, p, g *big.Int) (*big.Int, *big.Int, error) {
 	// 计算 PRF_p(Ky, id||op)
 	idOp := append(id, byte(op))
-	alpha1, err := PrfFp(Ky, idOp, p, g)
+
+	// alpha1, err := PrfFp(Ky, idOp, p, g)
+	alpha1, err := PrfFp(Ky, idOp, p, g) // 使用Fp函数计算alpha1
 	if err != nil {
 		log.Println(err)
 		return nil, nil, err
 	}
 
 	// 计算 PRF_p(Kz, w||wc)
-	alpha2, err := PrfFp(Kz, wWc, p, g)
+	alpha2, err := PrfFp(Kz, wWc, p, g) // 使用Fp函数计算alpha2
 	if err != nil {
 		fmt.Println(err)
 		return nil, nil, err
 	}
 
+	// 计算alpha = alpha1 * alpha2^{-1}
+	// alpha := new(big.Int).Mul(alpha1, new(big.Int).ModInverse(alpha2, p))
+	//alpha = new(big.Int).Mod(alpha, p)
+
 	// Calculate alpha = alpha1 * alpha2
 	pMinus1 := new(big.Int).Sub(p, big.NewInt(1))
 	alpha2 = new(big.Int).ModInverse(alpha2, pMinus1)
-
+	//fmt.Println("alpha2:", alpha2)
+	//fmt.Println("alpha1:", alpha1)
 	alpha := new(big.Int).Mul(alpha1, alpha2)
 
 	return alpha, alpha1, nil

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"sync"
 	"time"
 )
 
@@ -45,18 +46,21 @@ func (odxt *ODXT) Encrypt(keyword string, ids []string, operation utils.Operatio
 			return encryptedTime, err
 		}
 
-		// xtag = g^{Fp(Kx, w)*Fp(Ky, id||op)} mod p
-		C, err := utils.PrfFp(kx, []byte(keyword), p, g)
+		// xtag = g^{Fp(Kx, w)*Fp(Ky, id||op)} mod p-1
+		xtag1, err := utils.PrfFp(kx, []byte(keyword), p, g)
 		if err != nil {
 			return encryptedTime, err
 		}
-		A := new(big.Int).Mul(C, alpha1)
-		xtag := new(big.Int).Exp(g, A, p)
+		// xtag := new(big.Int).Mul(xtag1, alpha1)
+		// xtag.Mod(xtag, p)
+		// Xtag := new(big.Int).Exp(g, xtag, pMinusOne)
+		A := new(big.Int).Mul(xtag1, alpha1)
+		Xtag := new(big.Int).Exp(g, A, p)
 
 		encryptedTime += time.Since(start)
 
 		// Encoded the ciphertext
-		odxt.XSet[base64.StdEncoding.EncodeToString(xtag.Bytes())] = 1
+		odxt.XSet[base64.StdEncoding.EncodeToString(Xtag.Bytes())] = 1
 		odxt.TSet[base64.StdEncoding.EncodeToString(address)] = &tsetValue{base64.StdEncoding.EncodeToString(val), alpha}
 	}
 
@@ -79,6 +83,7 @@ func (odxt *ODXT) Search(q []string) (time.Duration, time.Duration, []utils.SEOp
 		// 遍历 xtokenList
 		for _, xtoken := range xtokenList[j] {
 			// 判断 xtag 是否匹配
+			// xtag := new(big.Int).Exp(xtoken, alpha, pMinusOne)
 			xtag := new(big.Int).Exp(xtoken, alpha, p)
 			if _, ok := odxt.XSet[base64.StdEncoding.EncodeToString(xtag.Bytes())]; ok {
 				cnt++
@@ -116,20 +121,27 @@ func (odxt *ODXT) ClientSearchStep1(q []string) ([]string, [][]*big.Int) {
 		xtokenList[i] = make([]*big.Int, len(q)-1)
 	}
 	qt := utils.RemoveElement(q, w1)
+	var wg sync.WaitGroup
 	for j := 0; j < counter; j++ {
-		saddr, err := utils.PrfF(kt, append(append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), byte(0)))
-		if err != nil {
-			fmt.Println(err)
-		}
-		stokenList[j] = base64.StdEncoding.EncodeToString(saddr)
+		wg.Add(1)
+		go func(j int) {
+			defer wg.Done()
+			saddr, err := utils.PrfF(kt, append(append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), byte(0)))
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			stokenList[j] = base64.StdEncoding.EncodeToString(saddr)
 
-		for i, wi := range qt {
-			xtoken1, _ := utils.PrfFp(kx, []byte(wi), p, g)
-			xtoken2, _ := utils.PrfFp(kz, append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), p, g)
-			xtoken := new(big.Int).Exp(g, new(big.Int).Mul(xtoken1, xtoken2), p)
-			xtokenList[j][i] = xtoken
-		}
+			for i, wi := range qt {
+				xtoken1, _ := utils.PrfFp(kx, []byte(wi), p, g)
+				xtoken2, _ := utils.PrfFp(kz, append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), p, g)
+				xtoken := new(big.Int).Exp(g, new(big.Int).Mul(xtoken1, xtoken2), p)
+				xtokenList[j][i] = xtoken
+			}
+		}(j)
 	}
+	wg.Wait()
 	return stokenList, xtokenList
 }
 

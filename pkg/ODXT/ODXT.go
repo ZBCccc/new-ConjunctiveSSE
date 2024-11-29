@@ -32,6 +32,7 @@ type tsetValue struct {
 var (
 	g           *big.Int
 	p           *big.Int
+	pMinusOne   *big.Int
 	PlaintextDB *mongo.Database
 )
 
@@ -99,13 +100,11 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 	odxt.UpdateCnt = make(map[string]int)
 
 	// 初始化 g 和 p
+	//g = big.NewInt(9)
+	//p = new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 255), big.NewInt(19))
 	g = big.NewInt(65537)
-	var ok bool
-	p, ok = new(big.Int).SetString("69445180235231407255137142482031499329548634082242122837872648805446522657159", 10)
-	if !ok {
-		return fmt.Errorf("invalid prime number")
-	}
-
+	p, _ = new(big.Int).SetString("69445180235231407255137142482031499329548634082242122837872648805446522657159", 10)
+	pMinusOne = new(big.Int).Sub(p, big.NewInt(1))
 	// 初始化 XSet 和 TSet
 	odxt.XSet = make(map[string]int)
 	odxt.TSet = make(map[string]*tsetValue)
@@ -122,31 +121,31 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 
 func (odxt *ODXT) CiphertextGenPhase(dbName string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-    defer cancel()
-    defer PlaintextDB.Client().Disconnect(ctx)
+	defer cancel()
+	defer PlaintextDB.Client().Disconnect(ctx)
 
-    collection := PlaintextDB.Collection("id_keywords")
-    
-    // 先获取总数以预分配空间
-    count, err := collection.CountDocuments(ctx, bson.D{})
-    if err != nil {
-        return fmt.Errorf("count documents failed: %w", err)
-    }
-    
-    // 使用实际数量预分配
-    encryptTimeList := make([]time.Duration, 0, count)
-    keywordList := make([]string, 0, count)
-    volumeList := make([]int, 0, count)
+	collection := PlaintextDB.Collection("id_keywords")
 
-    opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(3000)
-    cur, err := collection.Find(ctx, bson.D{}, opts)
-    if err != nil {
-        return fmt.Errorf("find collection failed: %w", err)
-    }
-    defer cur.Close(ctx)
+	// 先获取总数以预分配空间
+	count, err := collection.CountDocuments(ctx, bson.D{})
+	if err != nil {
+		return fmt.Errorf("count documents failed: %w", err)
+	}
 
-    var keywordIds []bson.M
-    if err = cur.All(ctx, &keywordIds); err != nil {
+	// 使用实际数量预分配
+	encryptTimeList := make([]time.Duration, 0, count)
+	keywordList := make([]string, 0, count)
+	volumeList := make([]int, 0, count)
+
+	opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(3000)
+	cur, err := collection.Find(ctx, bson.D{}, opts)
+	if err != nil {
+		return fmt.Errorf("find collection failed: %w", err)
+	}
+	defer cur.Close(ctx)
+
+	var keywordIds []bson.M
+	if err = cur.All(ctx, &keywordIds); err != nil {
 		return fmt.Errorf("read cursor failed: %w", err)
 	}
 
@@ -246,8 +245,8 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 
 		// 将结果添加到结果列表
 		resultList = append(resultList, sIdList)
-		clientSearchTime = append(clientSearchTime, clientTimeTotal)
-		serverTimeList = append(serverTimeList, serverTimeTotal)
+		clientSearchTime = append(clientSearchTime, clientTime)
+		serverTimeList = append(serverTimeList, serverTime)
 		resultLengthList = append(resultLengthList, len(sIdList))
 	}
 
