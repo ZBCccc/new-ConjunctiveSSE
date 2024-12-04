@@ -100,8 +100,6 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 	odxt.UpdateCnt = make(map[string]int)
 
 	// 初始化 g 和 p
-	//g = big.NewInt(9)
-	//p = new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 255), big.NewInt(19))
 	g = big.NewInt(65537)
 	p, _ = new(big.Int).SetString("69445180235231407255137142482031499329548634082242122837872648805446522657159", 10)
 	pMinusOne = new(big.Int).Sub(p, big.NewInt(1))
@@ -202,7 +200,10 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) error {
 }
 
 func (odxt *ODXT) DeletionPhaseWithSearch(delRate int) {
-
+	fileName := "./cmd/ODXT/configs/del_keywords.txt"
+	delNums := int(float64(len(odxt.TSet)) * (float64(delRate) / 100.0))
+	keywordsList := utils.GenDeletePairs(fileName, delNums)
+	_ = keywordsList
 }
 
 func (odxt *ODXT) SearchPhase(tableName, fileName string) {

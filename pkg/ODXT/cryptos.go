@@ -11,58 +11,67 @@ import (
 )
 
 func (odxt *ODXT) Encrypt(keyword string, ids []string, operation utils.Operation) (time.Duration, error) {
-	kt, kx, ky, kz := odxt.Keys[0], odxt.Keys[1], odxt.Keys[2], odxt.Keys[3]
 	var encryptedTime time.Duration
 	if _, ok := odxt.UpdateCnt[keyword]; !ok {
 		odxt.UpdateCnt[keyword] = 0
 	}
 	for _, id := range ids {
-		start := time.Now()
-		odxt.UpdateCnt[keyword]++
-		msgLen := len(keyword) + len(big.NewInt(int64(odxt.UpdateCnt[keyword])).Bytes())
-		wWc := make([]byte, 0, msgLen)
-		wWc = append(wWc, []byte(keyword)...)
-		wWc = append(wWc, big.NewInt(int64(odxt.UpdateCnt[keyword])).Bytes()...)
-
-		// address = PRF(kt, w||wc||0)
-		address, err := utils.PrfF(kt, append(wWc, byte(0)))
+		encryptedTimeAOperation, err := odxt.encrypt(keyword, id, operation)
 		if err != nil {
 			return encryptedTime, err
 		}
-
-		// val = PRF(kt, w||wc||1) xor (id||op)
-		val, err := utils.PrfF(kt, append(wWc, byte(1)))
-		if err != nil {
-			return encryptedTime, err
-		}
-		val, err = utils.BytesXORWithOp(val, []byte(id), int(operation))
-		if err != nil {
-			return encryptedTime, err
-		}
-
-		// alpha = Fp(ky, id||op) * Fp(kz, w||wc)^-1
-		alpha, alpha1, err := utils.ComputeAlpha(ky, kz, []byte(id), int(operation), wWc, p, g)
-		if err != nil {
-			return encryptedTime, err
-		}
-
-		// xtag = g^{Fp(Kx, w)*Fp(Ky, id||op)} mod p-1
-		xtag1, err := utils.PrfFp(kx, []byte(keyword), p, g)
-		if err != nil {
-			return encryptedTime, err
-		}
-		// xtag := new(big.Int).Mul(xtag1, alpha1)
-		// xtag.Mod(xtag, p)
-		// Xtag := new(big.Int).Exp(g, xtag, pMinusOne)
-		A := new(big.Int).Mul(xtag1, alpha1)
-		Xtag := new(big.Int).Exp(g, A, p)
-
-		encryptedTime += time.Since(start)
-
-		// Encoded the ciphertext
-		odxt.XSet[base64.StdEncoding.EncodeToString(Xtag.Bytes())] = 1
-		odxt.TSet[base64.StdEncoding.EncodeToString(address)] = &tsetValue{base64.StdEncoding.EncodeToString(val), alpha}
+		encryptedTime += encryptedTimeAOperation
 	}
+
+	return encryptedTime, nil
+}
+
+func (odxt *ODXT) encrypt(keyword string, id string, operation utils.Operation) (time.Duration, error) {
+	kt, kx, ky, kz := odxt.Keys[0], odxt.Keys[1], odxt.Keys[2], odxt.Keys[3]
+	odxt.UpdateCnt[keyword]++
+	msgLen := len(keyword) + len(big.NewInt(int64(odxt.UpdateCnt[keyword])).Bytes())
+	wWc := make([]byte, 0, msgLen)
+	wWc = append(wWc, []byte(keyword)...)
+	wWc = append(wWc, big.NewInt(int64(odxt.UpdateCnt[keyword])).Bytes()...)
+
+	var encryptedTime time.Duration
+	start := time.Now()
+
+	// address = PRF(kt, w||wc||0)
+	address, err := utils.PrfF(kt, append(wWc, byte(0)))
+	if err != nil {
+		return encryptedTime, err
+	}
+
+	// val = PRF(kt, w||wc||1) xor (id||op)
+	val, err := utils.PrfF(kt, append(wWc, byte(1)))
+	if err != nil {
+		return encryptedTime, err
+	}
+	val, err = utils.BytesXORWithOp(val, []byte(id), int(operation))
+	if err != nil {
+		return encryptedTime, err
+	}
+
+	// alpha = Fp(ky, id||op) * Fp(kz, w||wc)^-1
+	alpha, alpha1, err := utils.ComputeAlpha(ky, kz, []byte(id), int(operation), wWc, p, g)
+	if err != nil {
+		return encryptedTime, err
+	}
+
+	// xtag = g^{Fp(Kx, w)*Fp(Ky, id||op)} mod p-1
+	xtag1, err := utils.PrfFp(kx, []byte(keyword), p, g)
+	if err != nil {
+		return encryptedTime, err
+	}
+	A := new(big.Int).Mul(xtag1, alpha1)
+	Xtag := new(big.Int).Exp(g, A, p)
+
+	encryptedTime += time.Since(start)
+
+	// Encoded the ciphertext
+	odxt.XSet[base64.StdEncoding.EncodeToString(Xtag.Bytes())] = 1
+	odxt.TSet[base64.StdEncoding.EncodeToString(address)] = &tsetValue{base64.StdEncoding.EncodeToString(val), alpha}
 
 	return encryptedTime, nil
 }
