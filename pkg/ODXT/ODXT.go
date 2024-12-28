@@ -122,8 +122,7 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) error {
 	defer cancel()
 	defer PlaintextDB.Client().Disconnect(ctx)
 
-	collection := PlaintextDB.Collection("id_keywords")
-
+	collection := PlaintextDB.Collection("keyword_ids")
 	// 先获取总数以预分配空间
 	count, err := collection.CountDocuments(ctx, bson.D{})
 	if err != nil {

@@ -25,11 +25,9 @@ import (
 type Operation int
 
 const (
-	Del Operation = iota // 0
-	Add                  // 1
+	Add Operation = iota // 0
+	Del                  // 1
 )
-
-var one = big.NewInt(1)
 
 // The prime order of the curve's base point subgroup
 var curveOrder, _ = new(big.Int).SetString("1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed", 16)

@@ -1,9 +1,9 @@
 module ConjunctiveSSE
 
-go 1.21.12
+go 1.23.3
 
 require (
-	github.com/bits-and-blooms/bloom/v3 v3.7.0
+	github.com/ZBCccc/Aura v0.0.0-20241222075104-b5f8feefc4d2
 	github.com/deckarep/golang-set/v2 v2.6.0
 	github.com/go-sql-driver/mysql v1.8.1
 	go.mongodb.org/mongo-driver v1.17.1

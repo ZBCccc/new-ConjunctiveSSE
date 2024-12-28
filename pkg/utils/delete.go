@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -82,33 +83,24 @@ func GenDeletePairs(filePath string, num int) []deletePair {
 
 	deletePairs := make([]deletePair, len(deleteIDs))
 	for i := 0; i < len(deleteIDs); i++ {
-		fmt.Println("deleteID:", deleteIDs[i])
-		cur, err := collection.Find(context.TODO(), bson.D{{"id", deleteIDs[i]}})
+		deletePairs[i].Id = deleteIDs[i]
+		var result bson.M
+		err := collection.FindOne(context.TODO(), bson.D{{Key: "id", Value: deleteIDs[i]}}).Decode(&result)
 		if err != nil {
 			log.Fatal(err)
 		}
-		defer cur.Close(context.TODO())
-
-		var result []bson.M
-		if err = cur.All(context.TODO(), &result); err != nil {
-			log.Fatal(err)
-		}
-		for _, v := range result {
-			// 假设 val_set 是一个数组（切片）
-			if valSet, ok := v["val_set"].([]interface{}); ok {
-				// 遍历 val_set 数组，提取其中的字符串元素
-				deletePairs[i].Keywords = make([]string, 0, len(valSet))
-				for _, item := range valSet {
-					if keyword, ok := item.(string); ok {
-						deletePairs[i].Keywords = append(deletePairs[i].Keywords, keyword)
-					}
+		// 假设 val_set 是一个数组（切片）
+		if valSet, ok := result["val_st"].(primitive.A); ok {
+			// 遍历 val_set 数组，提取其中的字符串元素
+			deletePairs[i].Keywords = make([]string, 0, len(valSet))
+			for _, v := range valSet {
+				if str, ok := v.(string); ok {
+					deletePairs[i].Keywords = append(deletePairs[i].Keywords, str)
 				}
 			}
 		}
-
 	}
 
 	// 4.返回deletePair
-
 	return deletePairs
 }
