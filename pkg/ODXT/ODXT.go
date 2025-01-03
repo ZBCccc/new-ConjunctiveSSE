@@ -47,12 +47,6 @@ type ODXT struct {
 	XSet      map[string]int
 }
 
-type UpdatePayload struct {
-	Address string
-	Val     string
-	Alpha   string
-}
-
 func ReadKeys(fileName string) [4][]byte {
 	// 读取文件
 	file, err := os.Open(fileName)
@@ -267,13 +261,4 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-}
-
-// CalculateUpdatePayloadSize 计算[]UpdatePayload的字节大小
-func CalculateUpdatePayloadSize(payloads []UpdatePayload) int {
-	size := 0
-	for _, payload := range payloads {
-		size += len(payload.Address) + len(payload.Val) + len(payload.Alpha)
-	}
-	return size
 }
