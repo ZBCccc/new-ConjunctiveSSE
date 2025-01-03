@@ -68,50 +68,6 @@ func TestFp(t *testing.T) {
 	}
 }
 
-func TestComputeExp(t *testing.T) {
-	tests := []struct {
-		name    string
-		x       *big.Int
-		wantErr bool
-	}{
-		{
-			name:    "small number",
-			x:       big.NewInt(123),
-			wantErr: false,
-		},
-		{
-			name:    "zero",
-			x:       big.NewInt(0),
-			wantErr: false,
-		},
-		{
-			name: "large number",
-			x: func() *big.Int {
-				n, _ := new(big.Int).SetString("123456789123456789123456789", 10)
-				return n
-			}(),
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			start := time.Now()
-			got, err := ComputeExp(tt.x)
-			duration := time.Since(start)
-
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ComputeExp() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got == nil {
-				t.Error("ComputeExp() returned nil result")
-			}
-			t.Logf("Duration: %v", duration)
-		})
-	}
-}
-
 // 性能测试
 func BenchmarkFp(b *testing.B) {
 	key := make([]byte, 32)
@@ -123,15 +79,6 @@ func BenchmarkFp(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = Fp(key, message, p)
-	}
-}
-
-func BenchmarkComputeExp(b *testing.B) {
-	x, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 256))
-	
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, _ = ComputeExp(x)
 	}
 }
 
@@ -154,19 +101,3 @@ func BenchmarkFp_DifferentSizes(b *testing.B) {
 		})
 	}
 }
-
-// 测试不同指数大小的性能
-func BenchmarkComputeExp_DifferentSizes(b *testing.B) {
-	sizes := []int{32, 64, 128, 256}
-
-	for _, size := range sizes {
-		b.Run(fmt.Sprintf("exponent_bits_%d", size), func(b *testing.B) {
-			x, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), uint(size)))
-
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				_, _ = ComputeExp(x)
-			}
-		})
-	}
-} 

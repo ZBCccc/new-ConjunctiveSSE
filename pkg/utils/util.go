@@ -1,24 +1,21 @@
 package utils
 
 import (
+	pbcc "ConjunctiveSSE/pkg/utils/pbc"
 	"bufio"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/hmac"
-	"crypto/rand"
-	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/Nik-U/pbc"
 	mapset "github.com/deckarep/golang-set/v2"
 )
 
@@ -29,38 +26,12 @@ const (
 	Del                  // 1
 )
 
-// The prime order of the curve's base point subgroup
-var curveOrder, _ = new(big.Int).SetString("1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed", 16)
-
 type SEOp struct {
 	J    int
 	Sval string
 	Cnt  int
 }
 
-// aesEncrypt HXT implement for Prf function
-func aesEncrypt(content, password []byte) ([]byte, error) {
-	// 使用SHA-1生成密钥
-	hasher := sha1.New()
-	hasher.Write(password)
-	key := hasher.Sum(nil)[:16] // 取前16字节作为AES密钥
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	ciphertext := make([]byte, aes.BlockSize+len(content))
-	iv := ciphertext[:aes.BlockSize]
-	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-		return nil, err
-	}
-
-	stream := cipher.NewCFBEncrypter(block, iv)
-	stream.XORKeyStream(ciphertext[aes.BlockSize:], content)
-
-	return ciphertext, nil
-}
 
 func PrfF(key, message []byte) ([]byte, error) {
 	// 生成一个HMAC对象
@@ -105,52 +76,7 @@ func Fp(key, message []byte, p *big.Int) (*big.Int, error) {
 	return result, nil
 }
 
-func FpX25519(key, message []byte) ([32]byte, error) {
-	// 1. Compute HMAC-SHA256
-	h := hmac.New(sha256.New, key)
-	_, err := h.Write(message)
-	if err != nil {
-		return [32]byte{}, err
-	}
-	mac := h.Sum(nil)
 
-	// 2. Convert to scalar
-	var scalar [32]byte
-	copy(scalar[:], mac)
-
-	return scalar, nil
-}
-
-func computeScalarInverse(scalar [32]byte) ([32]byte, error) {
-	// Convert scalar to big.Int
-	scalarInt := new(big.Int).SetBytes(scalar[:])
-
-	// Compute modular multiplicative inverse
-	inverse := new(big.Int).ModInverse(scalarInt, curveOrder)
-	if inverse == nil {
-		return [32]byte{}, fmt.Errorf("failed to compute inverse: scalar may not be coprime with curve order")
-	}
-
-	// Convert back to 32 bytes
-	var result [32]byte
-	inverseBytes := inverse.Bytes()
-	// Ensure we have 32 bytes (pad with zeros if necessary)
-	copy(result[32-len(inverseBytes):], inverseBytes)
-
-	return result, nil
-}
-
-func ComputeExp(x *big.Int) (*big.Int, error) {
-	// 使用Curve25519的基点9作为生成元g
-	g := big.NewInt(9)
-	// 使用Curve25519的素数模数
-	p := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 255), big.NewInt(19))
-
-	// 计算g^x mod p
-	result := new(big.Int).Exp(g, x, p)
-
-	return result, nil
-}
 
 func PrfFp(key, message []byte, p, g *big.Int) (*big.Int, error) {
 	// 生成一个HMAC对象
@@ -181,77 +107,38 @@ func PrfFp(key, message []byte, p, g *big.Int) (*big.Int, error) {
 	return result, nil
 }
 
-func MultiplyScalars(x, y [32]byte) ([32]byte, error) {
-	product := new(big.Int).SetInt64(1)
-	scalars := [][32]byte{x, y}
-	// Convert each scalar to big.Int and multiply
-	for _, scalar := range scalars {
-		// Convert scalar bytes to big.Int
-		scalarInt := new(big.Int).SetBytes(scalar[:])
-		// Multiply with running product
-		product.Mul(product, scalarInt)
-		// Reduce modulo curve order
-		product.Mod(product, curveOrder)
-	}
 
-	// Convert back to 32 bytes
-	var result [32]byte
-	productBytes := product.Bytes()
-	// Ensure we have 32 bytes (pad with zeros if necessary)
-	copy(result[32-len(productBytes):], productBytes)
-
-	// Apply Curve25519 clamping
-	//result[0] &= 248
-	//result[31] &= 127
-	//result[31] |= 64
-
-	return result, nil
-}
-
-func ComputeAlpha(Ky, Kz, id []byte, op int, wWc []byte, p, g *big.Int) (*big.Int, *big.Int, error) {
+func ComputeAlpha(Ky, Kz, id []byte, op int, wWc []byte, p, g *big.Int) (*pbc.Element, *pbc.Element, error) {
 	// 计算 PRF_p(Ky, id||op)
 	idOp := append(id, byte(op))
 
 	// alpha1, err := PrfFp(Ky, idOp, p, g)
-	alpha1, err := PrfFp(Ky, idOp, p, g) // 使用Fp函数计算alpha1
+	// alpha1, err := PrfFp(Ky, idOp, p, g) // 使用Fp函数计算alpha1
+	// if err != nil {
+	// 	log.Println(err)
+	// 	return nil, nil, err
+	// }
+	alpha1, err := pbcc.PrfToZr(Ky, idOp)
 	if err != nil {
-		log.Println(err)
 		return nil, nil, err
 	}
 
 	// 计算 PRF_p(Kz, w||wc)
-	alpha2, err := PrfFp(Kz, wWc, p, g) // 使用Fp函数计算alpha2
+	// alpha2, err := PrfFp(Kz, wWc, p, g) // 使用Fp函数计算alpha2
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	return nil, nil, err
+	// }
+	alpha2, err := pbcc.PrfToZr(Kz, wWc)
 	if err != nil {
-		fmt.Println(err)
 		return nil, nil, err
 	}
 
 	// Calculate alpha = alpha1 * alpha2
-	pMinus1 := new(big.Int).Sub(p, big.NewInt(1))
-	alpha2 = new(big.Int).ModInverse(alpha2, pMinus1)
-	alpha := new(big.Int).Mul(alpha1, alpha2)
-
-	return alpha, alpha1, nil
-}
-
-func ComputeAlphaX25519(Ky, Kz, id []byte, op int, wWc []byte) ([32]byte, [32]byte, error) {
-
-	// 计算 PRF_p(Ky, id||op)
-	idOp := append(id, byte(op))
-
-	alpha1, err := FpX25519(Ky, idOp) // 使用Fp函数计算alpha1
-	if err != nil {
-		return [32]byte{}, [32]byte{}, err
-	}
-	alpha2, err := FpX25519(Kz, wWc) // 使用Fp函数计算alpha2
-	alpha2Inverse, err := computeScalarInverse(alpha2)
-	if err != nil {
-		return [32]byte{}, [32]byte{}, err
-	}
-	alpha, err := MultiplyScalars(alpha1, alpha2Inverse)
-	if err != nil {
-		return [32]byte{}, [32]byte{}, err
-	}
+	// pMinus1 := new(big.Int).Sub(p, big.NewInt(1))
+	// alpha2 = new(big.Int).ModInverse(alpha2, pMinus1)
+	// alpha := new(big.Int).Mul(alpha1, alpha2)
+	alpha := pbcc.ZrDiv(alpha1, alpha2)
 
 	return alpha, alpha1, nil
 }

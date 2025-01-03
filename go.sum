@@ -1,5 +1,7 @@
 filippo.io/edwards25519 v1.1.0 h1:FNf4tywRC1HmFuKW5xopWpigGjJKiJSV0Cqo0cJWDaA=
 filippo.io/edwards25519 v1.1.0/go.mod h1:BxyFTGdWcka3PhytdK4V28tE5sGfRvvvRV7EaN4VDT4=
+github.com/Nik-U/pbc v0.0.0-20181205041846-3e516ca0c5d6 h1:GU/vL5sj0IgGYEOIIAJ1HDI9dgqT0gJXkhXINri7Otc=
+github.com/Nik-U/pbc v0.0.0-20181205041846-3e516ca0c5d6/go.mod h1:Zt2U1SemYWNGXqS1fDiZC7u74nsJTAnWK5WVgvI8OAs=
 github.com/ZBCccc/Aura v0.0.0-20241222075104-b5f8feefc4d2 h1:cmijYNO06pWnCo6xfmxmiqVLB921jF4bLzFR8ELi5f4=
 github.com/ZBCccc/Aura v0.0.0-20241222075104-b5f8feefc4d2/go.mod h1:2Iv4Ksh0qUI5ETdQkrn/2dapxvPLsekpAnb/5iSY5hk=
 github.com/bits-and-blooms/bitset v1.14.2 h1:YXVoyPndbdvcEVcseEovVfp0qjJp7S+i5+xgp/Nfbdc=

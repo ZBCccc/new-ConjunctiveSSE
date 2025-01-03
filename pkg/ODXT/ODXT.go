@@ -94,9 +94,9 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 	odxt.UpdateCnt = make(map[string]int)
 
 	// 初始化 g 和 p
-	g = big.NewInt(65537)
-	p, _ = new(big.Int).SetString("69445180235231407255137142482031499329548634082242122837872648805446522657159", 10)
-	pMinusOne = new(big.Int).Sub(p, big.NewInt(1))
+	//g = big.NewInt(65537)
+	//p, _ = new(big.Int).SetString("69445180235231407255137142482031499329548634082242122837872648805446522657159", 10)
+	//pMinusOne = new(big.Int).Sub(p, big.NewInt(1))
 	// 初始化 XSet 和 TSet
 	odxt.XSet = make(map[string]int)
 	odxt.TSet = make(map[string]*tsetValue)
