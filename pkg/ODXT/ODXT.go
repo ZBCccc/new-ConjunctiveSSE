@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Nik-U/pbc"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -26,7 +27,7 @@ import (
 
 type tsetValue struct {
 	val   string
-	alpha *big.Int
+	alpha *pbc.Element
 }
 
 var (
@@ -93,10 +94,6 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 	// 初始化 UpdateCnt
 	odxt.UpdateCnt = make(map[string]int)
 
-	// 初始化 g 和 p
-	//g = big.NewInt(65537)
-	//p, _ = new(big.Int).SetString("69445180235231407255137142482031499329548634082242122837872648805446522657159", 10)
-	//pMinusOne = new(big.Int).Sub(p, big.NewInt(1))
 	// 初始化 XSet 和 TSet
 	odxt.XSet = make(map[string]int)
 	odxt.TSet = make(map[string]*tsetValue)
@@ -141,6 +138,7 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) error {
 	}
 
 	// 读取所有记录
+	// keywordIds = keywordIds[:100]
 	for _, keywordId := range keywordIds {
 		valSet, ok := keywordId["val_set"].(primitive.A)
 		if !ok {
@@ -208,12 +206,13 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	clientSearchTime := make([]time.Duration, 0, len(keywordsList)+1)
 	serverTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
-	clientTimeTotal := time.Duration(0)
-	serverTimeTotal := time.Duration(0)
 	counterList := make([]int, 0, len(keywordsList)+1)
+	totalTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 
 	// 循环搜索
+	//keywordsList = keywordsList[:10]
 	for _, keywords := range keywordsList {
+		totalStart := time.Now()
 		// find w1's lens
 		// 选择查询频率最低的关键字
 		counter := math.MaxInt
@@ -233,14 +232,15 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 			log.Fatal(err)
 		}
 		decryptTime := time.Since(start)
+
 		clientTime := trapdoorTime + decryptTime
-		clientTimeTotal += clientTime
-		serverTimeTotal += serverTime
+		totalTime := time.Since(totalStart)
 
 		// 将结果添加到结果列表
 		resultList = append(resultList, sIdList)
-		clientSearchTime = append(clientSearchTime, clientTime)
-		serverTimeList = append(serverTimeList, serverTime)
+		clientSearchTime = append(clientSearchTime, clientTime) // clientSearchTime = trapdoorTime + decryptTime
+		serverTimeList = append(serverTimeList, serverTime)     // serverTimeList = serverTime
+		totalTimeList = append(totalTimeList, totalTime)        // totalTimeList = totalTime
 		resultLengthList = append(resultLengthList, len(sIdList))
 	}
 
@@ -248,12 +248,12 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	resultpath := filepath.Join("result", "Search", "ODXT", tableName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
-	resultHeader := []string{"keyword", "clientSearchTime", "serverTime", "resultLength", "counter"}
+	resultHeader := []string{"keyword", "clientSearchTime", "serverTime", "totalTime", "resultLength", "counter"}
 
 	// 将结果数据整理成表格形式
 	resultData := make([][]string, len(resultList))
 	for i, keywords := range keywordsList {
-		resultData[i] = []string{strings.Join(keywords, "#"), clientSearchTime[i].String(), serverTimeList[i].String(), strconv.Itoa(resultLengthList[i]), strconv.Itoa(counterList[i])}
+		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientSearchTime[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(counterList[i])}
 	}
 
 	// 将结果写入文件

@@ -1,21 +1,17 @@
 package utils
 
 import (
-	pbcc "ConjunctiveSSE/pkg/utils/pbc"
 	"bufio"
-	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/Nik-U/pbc"
 	mapset "github.com/deckarep/golang-set/v2"
 )
 
@@ -30,117 +26,6 @@ type SEOp struct {
 	J    int
 	Sval string
 	Cnt  int
-}
-
-
-func PrfF(key, message []byte) ([]byte, error) {
-	// 生成一个HMAC对象
-	h := hmac.New(sha256.New, key)
-	// 写入消息
-	_, err := h.Write(message)
-	if err != nil {
-		return nil, err
-	}
-	// 计算消息的MAC
-	return h.Sum(nil), nil
-}
-
-func Fp(key, message []byte, p *big.Int) (*big.Int, error) {
-	// 生成一个HMAC对象
-	h := hmac.New(sha256.New, key)
-	// 写入消息
-	_, err := h.Write(message)
-	if err != nil {
-		return nil, err
-	}
-	// 计算消息的MAC
-	mac := h.Sum(nil)
-
-	// 将MAC结果转换为big.Int
-	res := new(big.Int).SetBytes(mac)
-	pMinusOne := new(big.Int).Sub(p, big.NewInt(1))
-	// 计算res % p
-	result := new(big.Int).Mod(res, pMinusOne)
-
-	// 确保结果在Z_p^*中(1到p-2之间)
-	one := big.NewInt(1)
-	for result.Cmp(one) < 0 || result.Cmp(p) >= 0 || new(big.Int).GCD(nil, nil, result, p).Cmp(one) != 0 {
-		// 如果不满足条件,继续hash直到找到合适的值
-		h.Reset()
-		h.Write(mac)
-		mac = h.Sum(nil)
-		res.SetBytes(mac)
-		result = new(big.Int).Mod(res, p)
-	}
-
-	return result, nil
-}
-
-
-
-func PrfFp(key, message []byte, p, g *big.Int) (*big.Int, error) {
-	// 生成一个HMAC对象
-	h := hmac.New(sha256.New, key)
-	// 写入消息
-	_, err := h.Write(message)
-	if err != nil {
-		return nil, err
-	}
-	// 计算消息的MAC
-	mac := h.Sum(nil)
-
-	// Convert mac result to big.Int
-	res := new(big.Int).SetBytes(mac)
-
-	// Check if res % p == 0 and add 1 if true
-	if new(big.Int).Mod(res, p).Cmp(big.NewInt(0)) == 0 {
-		res.Add(res, big.NewInt(1))
-	}
-
-	// Calculate ex = res % p
-	ex := new(big.Int).Mod(res, p)
-
-	// Calculate pow(g, ex, p-1)
-	pMinus1 := new(big.Int).Sub(p, big.NewInt(1))
-	result := new(big.Int).Exp(g, ex, pMinus1)
-
-	return result, nil
-}
-
-
-func ComputeAlpha(Ky, Kz, id []byte, op int, wWc []byte, p, g *big.Int) (*pbc.Element, *pbc.Element, error) {
-	// 计算 PRF_p(Ky, id||op)
-	idOp := append(id, byte(op))
-
-	// alpha1, err := PrfFp(Ky, idOp, p, g)
-	// alpha1, err := PrfFp(Ky, idOp, p, g) // 使用Fp函数计算alpha1
-	// if err != nil {
-	// 	log.Println(err)
-	// 	return nil, nil, err
-	// }
-	alpha1, err := pbcc.PrfToZr(Ky, idOp)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// 计算 PRF_p(Kz, w||wc)
-	// alpha2, err := PrfFp(Kz, wWc, p, g) // 使用Fp函数计算alpha2
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	return nil, nil, err
-	// }
-	alpha2, err := pbcc.PrfToZr(Kz, wWc)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Calculate alpha = alpha1 * alpha2
-	// pMinus1 := new(big.Int).Sub(p, big.NewInt(1))
-	// alpha2 = new(big.Int).ModInverse(alpha2, pMinus1)
-	// alpha := new(big.Int).Mul(alpha1, alpha2)
-	alpha := pbcc.ZrDiv(alpha1, alpha2)
-
-	return alpha, alpha1, nil
 }
 
 // BytesXORWithOp 将MAC值的前31个字节与id异或，并将MAC的最后一个字节与op异或

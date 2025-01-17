@@ -34,7 +34,12 @@ func init() {
 	g1 = pairing.NewG1().Rand()
 }
 
-// PrfToZr converts a key and message to a pbc.Element
+// GetPairing 返回全局的 pairing 实例
+func GetPairing() *pbc.Pairing {
+	return pairing
+}
+
+// PrfToZr converts a hash of key and message to a pbc.Element
 func PrfToZr(key, message []byte) (*pbc.Element, error) {
 	h := hmac.New(sha256.New, key)
 	_, err := h.Write(message)
@@ -63,3 +68,6 @@ func ZrDiv(n, m *pbc.Element) *pbc.Element {
 	return pairing.NewZr().Div(n, m)
 }
 
+func Pow(n, m *pbc.Element) *pbc.Element {
+	return pairing.NewG1().PowZn(n, m)
+}
