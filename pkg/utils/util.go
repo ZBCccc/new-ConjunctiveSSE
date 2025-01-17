@@ -28,6 +28,18 @@ type SEOp struct {
 	Cnt  int
 }
 
+func (seop *SEOp) computeSize() int {
+	return 4 + len(seop.Sval) + 4
+}
+
+func CalculatePayloadSize(seopList []SEOp) int {
+	size := 0
+	for _, seop := range seopList {
+		size += seop.computeSize()
+	}
+	return size
+}
+
 // BytesXORWithOp 将MAC值的前31个字节与id异或，并将MAC的最后一个字节与op异或
 func BytesXORWithOp(mac, id []byte, op int) ([]byte, error) {
 	result := make([]byte, len(mac))

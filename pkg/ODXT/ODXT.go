@@ -208,9 +208,9 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
 	counterList := make([]int, 0, len(keywordsList)+1)
 	totalTimeList := make([]time.Duration, 0, len(keywordsList)+1)
+	payloadSizeList := make([]int, 0, len(keywordsList)+1)
 
 	// 循环搜索
-	//keywordsList = keywordsList[:10]
 	for _, keywords := range keywordsList {
 		totalStart := time.Now()
 		// find w1's lens
@@ -242,18 +242,19 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 		serverTimeList = append(serverTimeList, serverTime)     // serverTimeList = serverTime
 		totalTimeList = append(totalTimeList, totalTime)        // totalTimeList = totalTime
 		resultLengthList = append(resultLengthList, len(sIdList))
+		payloadSizeList = append(payloadSizeList, utils.CalculatePayloadSize(sEOpList))
 	}
 
 	// 设置结果文件的路径和名称
 	resultpath := filepath.Join("result", "Search", "ODXT", tableName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
-	resultHeader := []string{"keyword", "clientSearchTime", "serverTime", "totalTime", "resultLength", "counter"}
+	resultHeader := []string{"keyword", "clientSearchTime", "serverTime", "totalTime", "resultLength", "payloadSize", "counter"}
 
 	// 将结果数据整理成表格形式
 	resultData := make([][]string, len(resultList))
 	for i, keywords := range keywordsList {
-		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientSearchTime[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(counterList[i])}
+		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientSearchTime[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(payloadSizeList[i]), strconv.Itoa(counterList[i])}
 	}
 
 	// 将结果写入文件
