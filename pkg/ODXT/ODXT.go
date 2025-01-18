@@ -178,7 +178,7 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) error {
 	// 将结果数据整理成表格形式
 	resultData := make([][]string, len(keywordList))
 	for i, keyword := range keywordList {
-		resultData[i] = []string{keyword, strconv.Itoa(volumeList[i]), encryptTimeList[i].String()}
+		resultData[i] = []string{keyword, strconv.Itoa(volumeList[i]), strconv.Itoa(int(encryptTimeList[i].Microseconds()))}
 	}
 
 	// 将结果写入文件

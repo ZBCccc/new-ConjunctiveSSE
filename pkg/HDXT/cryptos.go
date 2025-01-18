@@ -301,6 +301,22 @@ type dk struct {
 	d string
 }
 
+func (d *dk) Size() int {
+	size := len(d.r) + len(d.d)
+	for _, l := range d.L {
+		size += len(l)
+	}
+	return size
+}
+
+func CalculateDkListSize(dkList []*dk) int {
+	size := 0
+	for _, d := range dkList {
+		size += d.Size()
+	}
+	return size
+}
+
 func CFind(hdxt *HDXT, k string) (int, error) {
 	k1 := hdxt.Auhme.Keys[0]
 	l, err := utils.FAesni(k1, []byte(k), 1)

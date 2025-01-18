@@ -63,14 +63,12 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 		keyLen := 16
 		hdxt.Mitra.Key = make([]byte, keyLen)
 		if _, err := rand.Read(hdxt.Mitra.Key); err != nil {
-			log.Println("Error generating random key:", err)
-			return err
+			log.Fatal("Error generating random key:", err)
 		}
 		for i := 0; i < 3; i++ {
 			key := make([]byte, keyLen)
 			if _, err := rand.Read(key); err != nil {
-				log.Println("Error generating random keys:", err)
-				return err
+				log.Fatal("Error generating random keys:", err)
 			}
 			hdxt.Auhme.Keys[i] = key
 		}
@@ -78,23 +76,20 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 		// 读取私钥
 		hdxt.Mitra.Key, hdxt.Auhme.Keys, err = utils.HdxtReadKeys("./cmd/HDXT/configs/keys.txt")
 		if err != nil {
-			log.Println("Error reading keys:", err)
-			return err
+			log.Fatal("Error reading keys:", err)
 		}
 	}
 
 	// 连接MongoDB
 	hdxt.PlaintextDB, err = Database.MongoDBSetup(dbName)
 	if err != nil {
-		log.Println("Error initializing PlaintextDB:", err)
-		return err
+		log.Fatal("Error initializing PlaintextDB:", err)
 	}
 
 	// 获取keyword数量
 	universeKeywords, err = Database.GetUniqueValSets(hdxt.PlaintextDB)
 	if err != nil {
-		log.Println("Error getting universeKeywords:", err)
-		return err
+		log.Fatal("Error getting universeKeywords:", err)
 	}
 	universeKeywords = utils.RemoveDuplicates(universeKeywords)
 	universeKeywordsNums = len(universeKeywords)
@@ -102,8 +97,7 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 	// 获取id数量
 	universeIDs, err = Database.GetUniqueKs(hdxt.PlaintextDB)
 	if err != nil {
-		log.Println("Error getting universeIDs:", err)
-		return err
+		log.Fatal("Error getting universeIDs:", err)
 	}
 	universeIDs = utils.RemoveDuplicates(universeIDs)
 
@@ -126,18 +120,16 @@ func (hdxt *HDXT) SetupPhase() error {
 
 	// 初始化
 	setupTimeList := make([]time.Duration, 0, 1000000)
-	// tokenList := make([]*UTok, 0, 1000000)
 
 	// 从MongoDB数据库中获取名为"id_keywords"的集合
 	collection := plaintextDB.Collection("id_keywords")
 
 	// 创建一个游标，设置不超时并每次获取1000条记录
 	ctx := context.TODO()
-	opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(1000)
+	opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(3000)
 	cur, err := collection.Find(ctx, bson.D{}, opts)
 	if err != nil {
-		log.Println("Error getting collection:", err)
-		return err
+		log.Fatal("Error getting collection:", err)
 	}
 
 	// 关闭游标
@@ -146,15 +138,16 @@ func (hdxt *HDXT) SetupPhase() error {
 	// 读取游标中的所有记录
 	var idKeywords []bson.M
 	if err = cur.All(ctx, &idKeywords); err != nil {
-		log.Println("Error getting keywordIds:", err)
-		return err
+		log.Fatal("Error getting keywordIds:", err)
 	}
 
 	// Setup Phase
 	idKeywordsSetup := idKeywords[:len(idKeywords)/2]
 	idList := make([]string, 0, len(idKeywords)/2)
+	volumeList := make([]int, 0, len(idKeywords)/2)
 	for _, idKeyword := range idKeywordsSetup {
-		valSet, ok := idKeyword["val_set"].(primitive.A)
+		//log.Println(idKeyword)
+		valSet, ok := idKeyword["val_st"].(primitive.A)
 		if !ok {
 			log.Println("val_set is not of type primitive.A")
 			return err
@@ -169,7 +162,7 @@ func (hdxt *HDXT) SetupPhase() error {
 			}
 		}
 		keywords = utils.RemoveDuplicates(keywords) // 对keywords去重
-		id := idKeyword["k"].(string)
+		id := idKeyword["id"].(string)
 		encryptTime, err := hdxt.Setup(id, keywords, Add)
 		if err != nil {
 			log.Println("Error in Setup:", err)
@@ -178,14 +171,15 @@ func (hdxt *HDXT) SetupPhase() error {
 
 		setupTimeList = append(setupTimeList, encryptTime)
 		idList = append(idList, id)
+		volumeList = append(volumeList, len(keywords))
 	}
 	// save to file
 	saveTime := time.Now()
 	resultpath := filepath.Join("result", "Setup", "HDXT", fmt.Sprintf("%s.csv", saveTime.Format("2006-01-02_15-04-05")))
-	resultHeader := []string{"id", "setupTime"}
+	resultHeader := []string{"id", "volume", "addTime"}
 	resultData := make([][]string, len(idList))
 	for i, id := range idList {
-		resultData[i] = []string{id, setupTimeList[i].String()}
+		resultData[i] = []string{id, strconv.Itoa(volumeList[i]), strconv.Itoa(int(setupTimeList[i].Microseconds()))}
 	}
 	err = utils.WriteResultToCSV(resultpath, resultHeader, resultData)
 	if err != nil {
@@ -196,8 +190,9 @@ func (hdxt *HDXT) SetupPhase() error {
 	// Update Phase
 	idList = make([]string, 0, len(idKeywords)/2)
 	idKeywordsUpdate := idKeywords[len(idKeywords)/2:]
+	volumeList = make([]int, 0, len(idKeywords)/2)
 	for _, idKeyword := range idKeywordsUpdate {
-		valSet, ok := idKeyword["val_set"].(primitive.A)
+		valSet, ok := idKeyword["val_st"].(primitive.A)
 		if !ok {
 			log.Println("val_set is not of type primitive.A")
 			return err
@@ -212,7 +207,7 @@ func (hdxt *HDXT) SetupPhase() error {
 			}
 		}
 		keywords = utils.RemoveDuplicates(keywords) // 对keyword去重
-		id := idKeyword["k"].(string)
+		id := idKeyword["id"].(string)
 		encryptTime, tokList, err := hdxt.Encrypt(id, keywords, Add)
 		if err != nil {
 			log.Println("Error in Encrypt:", err)
@@ -227,6 +222,7 @@ func (hdxt *HDXT) SetupPhase() error {
 		// save to []
 		setupTimeList = append(setupTimeList, encryptTime)
 		idList = append(idList, id)
+		volumeList = append(volumeList, len(keywords))
 	}
 	saveTime = time.Now()
 
@@ -240,12 +236,12 @@ func (hdxt *HDXT) SetupPhase() error {
 	resultpath = filepath.Join("result", "Update", "HDXT", fmt.Sprintf("%s.csv", saveTime.Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
-	resultHeader = []string{"id", "addTime"}
+	resultHeader = []string{"id", "volume", "addTime"}
 
 	// 将结果数据整理成表格形式
 	resultData = make([][]string, len(idList))
 	for i, id := range idList {
-		resultData[i] = []string{id, setupTimeList[i].String()}
+		resultData[i] = []string{id, strconv.Itoa(volumeList[i]), strconv.Itoa(int(setupTimeList[i].Microseconds()))}
 	}
 
 	// 将结果写入文件
@@ -403,6 +399,8 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 	clientSearchTime := make([]time.Duration, 0, len(keywordsList)+1)
 	serverTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
+	totalTimeList := make([]time.Duration, 0, len(keywordsList)+1)
+	volumeList := make([]int, 0, len(keywordsList)+1)
 
 	clientTimeTotal := time.Duration(0)
 	serverTimeTotal := time.Duration(0)
@@ -412,6 +410,8 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 	for _, keywords := range keywordsList {
 		// 单关键词搜索, mitra part
 		// 选择查询频率最低的关键字
+		volume := 0
+		totalStart := time.Now()
 		counter, w1 := math.MaxInt64, keywords[0]
 		for _, w := range keywords {
 			num := hdxt.FileCnt[w]
@@ -436,35 +436,39 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 			log.Fatal(err)
 		}
 		clientTimeTotal += time.Since(start)
+		volume += CalculateDkListSize(dkList)
 
 		// server search step
 		start = time.Now()
 		posList := auhmeServerSearch(hdxt, dkList)
 		serverTimeTotal += time.Since(start)
-		// fmt.Println("posList's length:", len(posList))
 
 		// client search step 2
 		start = time.Now()
 		sIdList := auhmeClientSearchStep2(w1Ids, posList)
 		clientTimeTotal += time.Since(start)
+		totalTime := time.Since(totalStart)
+		volume += CalculatesIdListSize(sIdList)
 
 		// 将结果添加到结果列表
 		resultList = append(resultList, sIdList)
 		clientSearchTime = append(clientSearchTime, clientTimeTotal)
 		serverTimeList = append(serverTimeList, serverTimeTotal)
 		resultLengthList = append(resultLengthList, len(sIdList))
+		totalTimeList = append(totalTimeList, totalTime)
+		volumeList = append(volumeList, volume)
 	}
 
 	// 设置结果文件的路径和名称
 	resultpath := filepath.Join("result", "Search", "HDXT", tableName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
-	resultHeader := []string{"keyword", "clientTime", "serverTime", "resultLength"}
+	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength", "payloadSize"}
 
 	// 将结果数据整理成表格形式
 	resultData := make([][]string, len(resultList))
 	for i, keywords := range keywordsList {
-		resultData[i] = []string{strings.Join(keywords, "#"), clientSearchTime[i].String(), serverTimeList[i].String(), strconv.Itoa(resultLengthList[i])}
+		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientSearchTime[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(volumeList[i])}
 	}
 
 	// 将结果写入文件

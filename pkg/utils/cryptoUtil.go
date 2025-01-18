@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	pbcUtil "ConjunctiveSSE/pkg/utils/pbc"
+	"github.com/Nik-U/pbc"
 )
 
 func PrfF(key, message []byte) ([]byte, error) {
