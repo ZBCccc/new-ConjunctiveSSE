@@ -2,10 +2,13 @@ package FDXT
 
 import (
 	"ConjunctiveSSE/pkg/utils"
+	pbcUtil "ConjunctiveSSE/pkg/utils/pbc"
 	"encoding/base64"
 	"fmt"
 	"math"
 	"math/big"
+
+	"github.com/Nik-U/pbc"
 )
 
 type Operation int
@@ -19,7 +22,7 @@ type TKL struct {
 	l, t string
 }
 
-func (fdxt *FDXT) ClientSearchStep1(q []string) ([]*TKL, []string, [][]*big.Int, error) {
+func (fdxt *FDXT) ClientSearchStep1(q []string) ([]*TKL, []string, [][]*pbc.Element, error) {
 	kw, kt, kx, kz := fdxt.Keys[0], fdxt.Keys[1], fdxt.Keys[2], fdxt.Keys[4]
 	counter, w1 := math.MaxInt64, q[0]
 	for _, w := range q {
@@ -57,7 +60,7 @@ func (fdxt *FDXT) ClientSearchStep1(q []string) ([]*TKL, []string, [][]*big.Int,
 		}
 	}
 	STKL := make([]string, 0, 1000)
-	xtkList := make([][]*big.Int, fdxt.Count[w1].max+1)
+	xtkList := make([][]*pbc.Element, fdxt.Count[w1].max+1)
 	qt := utils.RemoveElement(q, w1)
 	for j := 1; j <= fdxt.Count[w1].max; j++ {
 		msg := make([]byte, 0, len(w1)+len(big.NewInt(int64(j)).Bytes())+1)
@@ -68,17 +71,17 @@ func (fdxt *FDXT) ClientSearchStep1(q []string) ([]*TKL, []string, [][]*big.Int,
 			return nil, nil, nil, err
 		}
 		STKL = append(STKL, base64.StdEncoding.EncodeToString(addr))
-		xtkList[j] = make([]*big.Int, 0, len(qt))
+		xtkList[j] = make([]*pbc.Element, 0, len(qt))
 		for _, w := range qt {
-			xtk1, err := utils.PrfFp(kx, []byte(w), p, g)
+			xtk1, err := pbcUtil.PrfToZr(kx, []byte(w))
 			if err != nil {
 				return nil, nil, nil, err
 			}
-			xtk2, err := utils.PrfFp(kz, msg, p, g)
+			xtk2, err := pbcUtil.PrfToZr(kz, msg)
 			if err != nil {
 				return nil, nil, nil, err
 			}
-			xtk := new(big.Int).Exp(g, new(big.Int).Mul(xtk1, xtk2), p)
+			xtk := pbcUtil.GToPower2(xtk1, xtk2)
 			xtkList[j] = append(xtkList[j], xtk)
 		}
 	}
@@ -90,7 +93,7 @@ type RES struct {
 	cnt int
 }
 
-func (fdxt *FDXT) ServerSearch(n int, tklList []*TKL, stklList []string, xtkList [][]*big.Int) ([]*RES, error) {
+func (fdxt *FDXT) ServerSearch(n int, tklList []*TKL, stklList []string, xtkList [][]*pbc.Element) ([]*RES, error) {
 	resList := make([]*RES, 0, len(stklList))
 	for _, tkl := range tklList {
 		l, t := tkl.l, tkl.t
@@ -110,8 +113,8 @@ func (fdxt *FDXT) ServerSearch(n int, tklList []*TKL, stklList []string, xtkList
 		val, alpha := fdxt.CDBTSet[stkl].val, fdxt.CDBTSet[stkl].alpha
 		for k := 0; k < n-1; k++ {
 			xtk := xtkList[j+1][k]
-			xtag := new(big.Int).Exp(xtk, alpha, p).Bytes()
-			if _, ok := fdxt.XSet[base64.StdEncoding.EncodeToString(xtag)]; ok {
+			xtag := pbcUtil.Pow(xtk, alpha)
+			if _, ok := fdxt.XSet[base64.StdEncoding.EncodeToString(xtag.Bytes())]; ok {
 				cnt++
 			}
 		}

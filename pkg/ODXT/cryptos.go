@@ -48,7 +48,7 @@ func (odxt *ODXT) encrypt(keyword string, id string, operation utils.Operation) 
 	val, _ = utils.BytesXORWithOp(val, []byte(id), int(operation))
 
 	// alpha = Fp(ky, id||op) * Fp(kz, w||wc)^-1
-	alpha, alpha1, _ := utils.ComputeAlpha(ky, kz, []byte(id), int(operation), wWc, p, g)
+	alpha, alpha1, _ := utils.ComputeAlpha(ky, kz, []byte(id), int(operation), wWc)
 
 	// xtag = g^{Fp(Kx, w)*Fp(Ky, id||op)} mod p-1
 	xtag1, _ := pbcUtil.PrfToZr(kx, []byte(keyword))

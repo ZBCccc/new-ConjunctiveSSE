@@ -50,7 +50,7 @@ func PrfFp(key, message []byte, p, g *big.Int) (*big.Int, error) {
 	return result, nil
 }
 
-func ComputeAlpha(Ky, Kz, id []byte, op int, wWc []byte, p, g *big.Int) (*pbc.Element, *pbc.Element, error) {
+func ComputeAlpha(Ky, Kz, id []byte, op int, wWc []byte) (*pbc.Element, *pbc.Element, error) {
 	// 计算 PRF_p(Ky, id||op)
 	idOp := append(id, byte(op))
 

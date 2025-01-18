@@ -20,6 +20,9 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	pbcUtil "ConjunctiveSSE/pkg/utils/pbc"
+	"github.com/Nik-U/pbc"
 )
 
 type counter struct {
@@ -28,7 +31,7 @@ type counter struct {
 
 type tsetValue struct {
 	val   string
-	alpha *big.Int
+	alpha *pbc.Element
 }
 
 type FDXT struct {
@@ -42,7 +45,6 @@ type FDXT struct {
 var (
 	PlaintextDB *mongo.Database
 	err         error
-	p, g        *big.Int
 )
 
 func ReadKeys(fileName string) [5][]byte {
@@ -84,8 +86,6 @@ func (fdxt *FDXT) Setup(dbName string) error {
 		log.Println(err)
 		return err
 	}
-	g = big.NewInt(65537)
-	p, _ = new(big.Int).SetString("69445180235231407255137142482031499329548634082242122837872648805446522657159", 10)
 	return nil
 }
 
@@ -94,8 +94,8 @@ func (fdxt *FDXT) UpdatePhase() error {
 	plaintextDB := PlaintextDB
 	defer plaintextDB.Client().Disconnect(context.Background())
 
-	// 从MongoDB数据库中获取名为"id_keywords"的集合
-	collection := plaintextDB.Collection("id_keywords")
+	// 从MongoDB数据库中获取名为"keyword_ids"的集合
+	collection := plaintextDB.Collection("keyword_ids")
 
 	// 创建一个游标，设置不超时并每次获取3000条记录
 	ctx := context.TODO()
@@ -197,17 +197,17 @@ func (fdxt *FDXT) Encrypt(keyword string, ids []string, op Operation) (time.Dura
 		if err != nil {
 			return 0, err
 		}
-		xtag1, err := utils.PrfFp(kx, []byte(keyword), p, g)
+		xtag1, err := pbcUtil.PrfToZr(kx, []byte(keyword))
 		if err != nil {
 			return 0, err
 		}
-		xtag2, err := utils.PrfFp(ky, append([]byte(id), byte(op)), p, g)
+		xtag2, err := pbcUtil.PrfToZr(ky, append([]byte(id), byte(op)))
 		if err != nil {
 			return 0, err
 		}
-		xtag := new(big.Int).Exp(g, new(big.Int).Mul(xtag1, xtag2), p)
+		xtag := pbcUtil.GToPower2(xtag1, xtag2)
 		c := utils.BytesXOR(xtag.Bytes(), t)
-		alpha, _, err := utils.ComputeAlpha(ky, kz, []byte(id), int(op), append([]byte(keyword), big.NewInt(int64(fdxt.Count[keyword].max)).Bytes()...), p, g)
+		alpha, _, err := utils.ComputeAlpha(ky, kz, []byte(id), int(op), append([]byte(keyword), big.NewInt(int64(fdxt.Count[keyword].max)).Bytes()...))
 		if err != nil {
 			return 0, err
 		}
@@ -232,7 +232,6 @@ func (fdxt *FDXT) SearchPhase(tableName, fileName string) error {
 
 	clientTimeTotal := time.Duration(0)
 	serverTimeTotal := time.Duration(0)
-	// keywordsList = keywordsList[:5]
 	for _, keywords := range keywordsList {
 		counter, w1 := math.MaxInt64, keywords[0]
 		for _, w := range keywords {

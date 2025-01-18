@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"math/big"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -31,9 +30,6 @@ type tsetValue struct {
 }
 
 var (
-	g           *big.Int
-	p           *big.Int
-	pMinusOne   *big.Int
 	PlaintextDB *mongo.Database
 )
 
