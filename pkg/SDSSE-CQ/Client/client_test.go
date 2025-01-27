@@ -26,8 +26,8 @@ func TestClient(t *testing.T) {
 	// search
 	// res := client.Search([]string{"test", "hello", "world"})
 	// t.Log("res", res, "len", len(res))
-	res := client.Search([]string{"hello", "world"})
+	res, _, _ := client.Search([]string{"hello", "world"})
 	t.Log("res", res, "len", len(res))
-	res = client.Search([]string{"hello"})
+	res, _, _ = client.Search([]string{"hello"})
 	t.Log("res", res, "len", len(res))
 }

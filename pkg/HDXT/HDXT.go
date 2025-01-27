@@ -95,7 +95,7 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 	universeKeywordsNums = len(universeKeywords)
 
 	// 获取id数量
-	universeIDs, err = Database.GetUniqueKs(hdxt.PlaintextDB)
+	universeIDs, err = Database.GetUniqueIDs(hdxt.PlaintextDB)
 	if err != nil {
 		log.Fatal("Error getting universeIDs:", err)
 	}
@@ -124,7 +124,7 @@ func (hdxt *HDXT) SetupPhase() error {
 	// 从MongoDB数据库中获取名为"id_keywords"的集合
 	collection := plaintextDB.Collection("id_keywords")
 
-	// 创建一个游标，设置不超时并每次获取1000条记录
+	// 创建一个游标，设置不超时并每次获取3000条记录
 	ctx := context.TODO()
 	opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(3000)
 	cur, err := collection.Find(ctx, bson.D{}, opts)
@@ -146,7 +146,7 @@ func (hdxt *HDXT) SetupPhase() error {
 	idList := make([]string, 0, len(idKeywords)/2)
 	volumeList := make([]int, 0, len(idKeywords)/2)
 	for _, idKeyword := range idKeywordsSetup {
-		//log.Println(idKeyword)
+		// log.Println(idKeyword)
 		valSet, ok := idKeyword["val_st"].(primitive.A)
 		if !ok {
 			log.Println("val_set is not of type primitive.A")

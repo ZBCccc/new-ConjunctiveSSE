@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"math/big"
+	"time"
 
 	sseclient "github.com/ZBCccc/Aura/Core/SSEClient"
 	util "github.com/ZBCccc/Aura/Util"
@@ -92,7 +93,8 @@ func (c *Client) Update(op util.Operation, keyword string, id string) {
 	c.XSet.Update(op, keyword, base64.StdEncoding.EncodeToString(xTag.Bytes()))
 }
 
-func (c *Client) Search(keywords []string) []string {
+func (c *Client) Search(keywords []string) ([]string, time.Duration, time.Duration) {
+	clientStart := time.Now()
 	// find the least count of keywords
 	minCount := math.MaxInt
 	w1 := keywords[0]
@@ -103,10 +105,9 @@ func (c *Client) Search(keywords []string) []string {
 				w1 = keyword
 			}
 		} else {
-			return nil
+			return nil, 0, 0
 		}
 	}
-	// log.Println("minCount", minCount, "w1", w1)
 
 	// Initialize xtokenList
 	xtokenList := make([][]*big.Int, minCount+1)
@@ -123,18 +124,19 @@ func (c *Client) Search(keywords []string) []string {
 			xtokenList[i][j] = xtoken
 		}
 	}
+	clientTime := time.Since(clientStart)
 
+	serverStart := time.Now()
 	// Run Aura.Search
 	ResT := c.TSet.Search(w1)
 	if ResT == nil {
-		return nil
+		return nil, 0, 0
 	}
-	// log.Println("ResT Len", len(ResT), "ResT", ResT)
 	XSet := make(map[string]bool)
 	for _, wj := range qt {
 		ResX := c.XSet.Search(wj)
 		if ResX == nil {
-			return nil
+			return nil, 0, 0
 		}
 		for _, x := range ResX {
 			XSet[x] = true
@@ -160,7 +162,9 @@ func (c *Client) Search(keywords []string) []string {
 			Res = append(Res, string(e))
 		}
 	}
+	serverTime := time.Since(serverStart)
 
+	clientStart = time.Now()
 	// Client side: decrypt
 	kw1, _ := utils.PrfF(c.k, []byte(w1))
 	ResInd := make([]string, 0, len(Res))
@@ -171,8 +175,9 @@ func (c *Client) Search(keywords []string) []string {
 		}
 		ResInd = append(ResInd, string(ind))
 	}
+	clientTime += time.Since(clientStart)
 
-	return ResInd
+	return ResInd, clientTime, serverTime
 }
 
 // 新增辅助函数

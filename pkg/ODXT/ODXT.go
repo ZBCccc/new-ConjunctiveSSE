@@ -199,7 +199,7 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 
 	// 初始化结果列表
 	resultList := make([][]string, 0, len(keywordsList)+1)
-	clientSearchTime := make([]time.Duration, 0, len(keywordsList)+1)
+	clientTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	serverTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
 	counterList := make([]int, 0, len(keywordsList)+1)
@@ -234,9 +234,9 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 
 		// 将结果添加到结果列表
 		resultList = append(resultList, sIdList)
-		clientSearchTime = append(clientSearchTime, clientTime) // clientSearchTime = trapdoorTime + decryptTime
-		serverTimeList = append(serverTimeList, serverTime)     // serverTimeList = serverTime
-		totalTimeList = append(totalTimeList, totalTime)        // totalTimeList = totalTime
+		clientTimeList = append(clientTimeList, clientTime) // clientTimeList = trapdoorTime + decryptTime
+		serverTimeList = append(serverTimeList, serverTime) // serverTimeList = serverTime
+		totalTimeList = append(totalTimeList, totalTime)    // totalTimeList = totalTime
 		resultLengthList = append(resultLengthList, len(sIdList))
 		payloadSizeList = append(payloadSizeList, utils.CalculatePayloadSize(sEOpList))
 	}
@@ -245,12 +245,12 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	resultpath := filepath.Join("result", "Search", "ODXT", tableName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
-	resultHeader := []string{"keyword", "clientSearchTime", "serverTime", "totalTime", "resultLength", "payloadSize", "counter"}
+	resultHeader := []string{"keyword", "clientTimeList", "serverTime", "totalTime", "resultLength", "payloadSize", "counter"}
 
 	// 将结果数据整理成表格形式
 	resultData := make([][]string, len(resultList))
 	for i, keywords := range keywordsList {
-		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientSearchTime[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(payloadSizeList[i]), strconv.Itoa(counterList[i])}
+		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientTimeList[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(payloadSizeList[i]), strconv.Itoa(counterList[i])}
 	}
 
 	// 将结果写入文件
