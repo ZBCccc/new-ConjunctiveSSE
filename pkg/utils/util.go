@@ -7,12 +7,11 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"github.com/duke-git/lancet/v2/slice"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
-
-	mapset "github.com/deckarep/golang-set/v2"
 )
 
 type Operation int
@@ -197,16 +196,7 @@ func HdxtReadKeys(filePath string) ([]byte, [3][]byte, error) {
 
 // RemoveDuplicates 去除切片中的重复元素
 func RemoveDuplicates(intSlice []string) []string {
-	// 创建一个新的string集合
-	stringSet := mapset.NewSet[string]()
-
-	// 将切片中的元素添加到集合中
-	for _, v := range intSlice {
-		stringSet.Add(v)
-	}
-
-	// 转换为切片
-	return stringSet.ToSlice()
+	return slice.Unique(intSlice)
 }
 
 func QueryKeywordsFromFile(fileName string) [][]string {
