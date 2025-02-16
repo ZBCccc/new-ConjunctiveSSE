@@ -89,8 +89,8 @@ type Delta struct {
 }
 
 type UTok struct {
-	tok map[string]string
-	op  Operation
+	Tok map[string]string
+	Op  Operation
 }
 
 func auhmeGenUpd(hdxt *HDXT, op Operation, ku string, vu int) (*UTok, error) {
@@ -198,7 +198,7 @@ func CClear(hdxt *HDXT) {
 }
 
 func auhmeApplyUpd(hdxt *HDXT, utok *UTok) {
-	tok, op := utok.tok, utok.op
+	tok, op := utok.Tok, utok.Op
 	for l, v := range tok {
 		if op == Add {
 			hdxt.AuhmeCipherList[l] = v
@@ -238,7 +238,7 @@ func xor(s1, s2 string) string {
 	return string(result)
 }
 
-func auhmeGenKey(hdxt *HDXT, mp map[string]int) (*dk, error) {
+func auhmeGenKey(hdxt *HDXT, mp map[string]int) (*Dk, error) {
 	k1, k2, k3, cnt := hdxt.Auhme.Keys[0], hdxt.Auhme.Keys[1], hdxt.Auhme.Keys[2], hdxt.Auhme.Deltas.cnt
 	L := make([]string, 0, len(mp))
 	beta := 1
@@ -286,30 +286,30 @@ func auhmeGenKey(hdxt *HDXT, mp map[string]int) (*dk, error) {
 		h := sha256.New()
 		h.Write(append(randomBytes, xors...))
 		d := base64.StdEncoding.EncodeToString(h.Sum(nil))
-		return &dk{L, r, d}, nil
+		return &Dk{L, r, d}, nil
 	}
 	if _, err := rand.Read(randomBytes); err != nil {
 		return nil, err
 	}
 	d := base64.StdEncoding.EncodeToString(randomBytes)
-	return &dk{L, r, d}, nil
+	return &Dk{L, r, d}, nil
 }
 
-type dk struct {
+type Dk struct {
 	L []string
-	r string
-	d string
+	R string
+	D string
 }
 
-func (d *dk) Size() int {
-	size := len(d.r) + len(d.d)
+func (d *Dk) Size() int {
+	size := len(d.R) + len(d.D)
 	for _, l := range d.L {
 		size += len(l)
 	}
 	return size
 }
 
-func CalculateDkListSize(dkList []*dk) int {
+func CalculateDkListSize(dkList []*Dk) int {
 	size := 0
 	for _, d := range dkList {
 		size += d.Size()
@@ -329,7 +329,7 @@ func CFind(hdxt *HDXT, k string) (int, error) {
 	return -1, nil
 }
 
-func auhmeQuery(hdxt *HDXT, dk *dk) int {
+func auhmeQuery(hdxt *HDXT, dk *Dk) int {
 	xors := make([]byte, 16)
 	for _, l := range dk.L {
 		lBytes, err := base64.StdEncoding.DecodeString(hdxt.AuhmeCipherList[l])
@@ -340,20 +340,20 @@ func auhmeQuery(hdxt *HDXT, dk *dk) int {
 		xors = utils.BytesXOR(xors, lBytes)
 	}
 	h := sha256.New()
-	rBytes, err := base64.StdEncoding.DecodeString(dk.r)
+	rBytes, err := base64.StdEncoding.DecodeString(dk.R)
 	if err != nil {
 		fmt.Println("rbytes decode error")
 		return 0
 	}
 	h.Write(append(rBytes, xors...))
 	d := base64.StdEncoding.EncodeToString(h.Sum(nil))
-	if d == dk.d {
+	if d == dk.D {
 		return 1
 	}
 	return 0
 }
 
-func mitraGenTrapdoor(hdxt *HDXT, keyword string) ([]string, error) {
+func MitraGenTrapdoor(hdxt *HDXT, keyword string) ([]string, error) {
 	tList := make([]string, 0, hdxt.FileCnt[keyword])
 	for i := 1; i <= hdxt.FileCnt[keyword]; i++ {
 		//Ti = PrfF(kt, w||i||0)
@@ -376,7 +376,7 @@ func mitraServerSearch(hdxt *HDXT, tList []string) []string {
 	return result
 }
 
-func mitraDecrypt(hdxt *HDXT, keyword string, encs []string) ([]string, error) {
+func MitraDecrypt(hdxt *HDXT, keyword string, encs []string) ([]string, error) {
 	dec := make([]string, 0, len(encs))
 	for i, e := range encs {
 		laber, err := utils.PrfF(hdxt.Mitra.Key, append(append([]byte(keyword+"#"), big.NewInt(int64(i+1)).Bytes()...), byte(1)))
@@ -400,8 +400,8 @@ func mitraDecrypt(hdxt *HDXT, keyword string, encs []string) ([]string, error) {
 	return dec, nil
 }
 
-func auhmeClientSearchStep1(hdxt *HDXT, w1Ids []string, q []string) ([]*dk, error) {
-	DK := make([]*dk, 0, len(w1Ids))
+func AuhmeClientSearchStep1(hdxt *HDXT, w1Ids []string, q []string) ([]*Dk, error) {
+	DK := make([]*Dk, 0, len(w1Ids))
 	for _, id := range w1Ids {
 		I := make(map[string]int, len(q))
 		for _, w := range q {
@@ -417,7 +417,7 @@ func auhmeClientSearchStep1(hdxt *HDXT, w1Ids []string, q []string) ([]*dk, erro
 	return DK, nil
 }
 
-func auhmeServerSearch(hdxt *HDXT, DK []*dk) []int {
+func auhmeServerSearch(hdxt *HDXT, DK []*Dk) []int {
 	result := make([]int, 0, len(DK))
 	for i, dk := range DK {
 		if auhmeQuery(hdxt, dk) == 1 {
@@ -427,7 +427,7 @@ func auhmeServerSearch(hdxt *HDXT, DK []*dk) []int {
 	return result
 }
 
-func auhmeClientSearchStep2(w1Ids []string, posList []int) []string {
+func AuhmeClientSearchStep2(w1Ids []string, posList []int) []string {
 	result := make([]string, 0, len(posList))
 	for _, pos := range posList {
 		result = append(result, w1Ids[pos])

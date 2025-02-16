@@ -150,7 +150,6 @@ func (hdxt *HDXT) SetupPhase() error {
 	idList := make([]string, 0, len(idKeywords)/2)
 	volumeList := make([]int, 0, len(idKeywords)/2)
 	for _, idKeyword := range idKeywordsSetup {
-		// log.Println(idKeyword)
 		valSet, ok := idKeyword["val_st"].(primitive.A)
 		if !ok {
 			log.Println("val_set is not of type primitive.A")
@@ -337,12 +336,12 @@ func (hdxt *HDXT) Encrypt(id string, keywords []string, operation Operation) (ti
 					return 0, nil, err
 				}
 			}
-			ut := utok.tok
+			ut := utok.Tok
 			for k, v := range ut {
 				UT[k] = v
 			}
 		}
-		tokx := &UTok{tok: UT, op: Add}
+		tokx := &UTok{Tok: UT, Op: Add}
 		tokList = append(tokList, tokx)
 	} else {
 		// op == edit
@@ -406,10 +405,8 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 	totalTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	volumeList := make([]int, 0, len(keywordsList)+1)
 
-	
-
 	// 循环搜索
-	// keywordsList = keywordsList[:1]
+	keywordsList = keywordsList[:1]
 	for _, keywords := range keywordsList {
 		clientTimeTotal := time.Duration(0)
 		serverTimeTotal := time.Duration(0)
@@ -436,7 +433,7 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 		// client search step 1
 		q := utils.RemoveElement(keywords, w1)
 		start := time.Now()
-		dkList, err := auhmeClientSearchStep1(hdxt, w1Ids, q)
+		dkList, err := AuhmeClientSearchStep1(hdxt, w1Ids, q)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -445,12 +442,13 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 
 		// server search step
 		start = time.Now()
+		
 		posList := auhmeServerSearch(hdxt, dkList)
 		serverTimeTotal += time.Since(start)
 
 		// client search step 2
 		start = time.Now()
-		sIdList := auhmeClientSearchStep2(w1Ids, posList)
+		sIdList := AuhmeClientSearchStep2(w1Ids, posList)
 		clientTimeTotal += time.Since(start)
 		totalTime := time.Since(totalStart)
 		volume += CalculatesIdListSize(sIdList)
@@ -486,7 +484,7 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 func (hdxt *HDXT) SearchOneKeyword(keyword string) (time.Duration, time.Duration, []string, error) {
 	// 生成陷门
 	start := time.Now()
-	tList, err := mitraGenTrapdoor(hdxt, keyword)
+	tList, err := MitraGenTrapdoor(hdxt, keyword)
 	if err != nil {
 		log.Println(err)
 		return 0, 0, nil, nil
@@ -499,7 +497,7 @@ func (hdxt *HDXT) SearchOneKeyword(keyword string) (time.Duration, time.Duration
 
 	// client decrypt and return result
 	start = time.Now()
-	ids, err := mitraDecrypt(hdxt, keyword, encryptedIds)
+	ids, err := MitraDecrypt(hdxt, keyword, encryptedIds)
 	if err != nil {
 		log.Println(err)
 		return 0, 0, nil, nil

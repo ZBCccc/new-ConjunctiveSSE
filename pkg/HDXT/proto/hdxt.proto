@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package proto;
+option go_package = "pkg/HDXT/proto";
+
+service HDXTService {
+  rpc Setup(stream SetupRequest) returns (SetupResponse) {}
+  rpc Update(UpdateRequest) returns (UpdateResponse) {}
+  rpc SearchOneKeyword(SearchOneKeywordRequest) returns (SearchOneKeywordResponse) {}
+  rpc Search(SearchRequest) returns (SearchResponse) {}
+}
+
+message SetupRequest {
+  map<string, string> mitra_ciphers = 1;
+  map<string, string> auhme_ciphers = 2;
+}
+
+message SetupResponse {
+  bool success = 1;
+}
+
+message UpdateRequest {
+  repeated UTok update_tokens = 1;
+}
+
+message UpdateResponse {
+  bool success = 1;
+}
+
+message SearchOneKeywordRequest {
+  repeated string trapdoors = 1;
+}
+
+message SearchOneKeywordResponse {
+  repeated string encrypted_ids = 1;
+}
+
+message SearchRequest {
+  repeated DK dk_list = 1;
+}
+
+message SearchResponse {
+  repeated int32 pos_list = 1;
+}
+
+message UTok {
+  map<string, string> tok = 1;
+  Operation op = 2;
+}
+
+message DK {
+  repeated string L = 1;
+  string r = 2;
+  string d = 3;
+}
+
+enum Operation {
+  ADD = 0;
+  EDIT = 1;
+  EDIT_PLUS = 2;
+}
