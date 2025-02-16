@@ -229,10 +229,13 @@ func (fdxt *FDXT) SearchPhase(tableName, fileName string) error {
 	clientSearchTime := make([]time.Duration, 0, len(keywordsList)+1)
 	serverTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
+	totalTimeList := make([]time.Duration, 0, len(keywordsList)+1)
+	payloadSizeList := make([]int, 0, len(keywordsList)+1)
 
-	clientTimeTotal := time.Duration(0)
-	serverTimeTotal := time.Duration(0)
 	for _, keywords := range keywordsList {
+		clientTimeTotal := time.Duration(0)
+		serverTimeTotal := time.Duration(0)
+		totalStart := time.Now()
 		counter, w1 := math.MaxInt64, keywords[0]
 		for _, w := range keywords {
 			num := fdxt.Count[w].max
@@ -259,6 +262,7 @@ func (fdxt *FDXT) SearchPhase(tableName, fileName string) error {
 			return err
 		}
 		serverTimeTotal += time.Since(start)
+		payloadSize := CalculateResListSize(resList)
 
 		// client search step 2
 		start = time.Now()
@@ -268,6 +272,8 @@ func (fdxt *FDXT) SearchPhase(tableName, fileName string) error {
 			return err
 		}
 		clientTimeTotal += time.Since(start)
+		totalTimeList = append(totalTimeList, time.Since(totalStart))
+		payloadSizeList = append(payloadSizeList, payloadSize)
 
 		// 将结果添加到结果列表
 		resultList = append(resultList, sIdList)
@@ -280,12 +286,12 @@ func (fdxt *FDXT) SearchPhase(tableName, fileName string) error {
 	resultpath := filepath.Join("result", "Search", "FDXT", tableName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
-	resultHeader := []string{"keyword", "clientTime", "serverTime", "resultLength"}
+	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime","resultLength", "payloadSize"}
 
 	// 将结果数据整理成表格形式
 	resultData := make([][]string, len(resultList))
 	for i, keywords := range keywordsList {
-		resultData[i] = []string{strings.Join(keywords, "#"), clientSearchTime[i].String(), serverTimeList[i].String(), strconv.Itoa(resultLengthList[i])}
+		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientSearchTime[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(payloadSizeList[i])}
 	}
 
 	// 将结果写入文件
@@ -294,4 +300,13 @@ func (fdxt *FDXT) SearchPhase(tableName, fileName string) error {
 		log.Fatal(err)
 	}
 	return nil
+}
+
+func CalculateResListSize(resList []*RES) int {
+	size := 0
+	for _, res := range resList {
+		size += len(res.val)
+		size += 4
+	}
+	return size
 }

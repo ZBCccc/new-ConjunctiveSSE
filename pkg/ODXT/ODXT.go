@@ -84,7 +84,10 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 		}
 	} else {
 		// 读取私钥
-		odxt.Keys = ReadKeys(keysPath)
+		odxt.Keys[0] = []byte("0123456789123456")
+		odxt.Keys[1] = []byte("0123456789123456")
+		odxt.Keys[2] = []byte("0123456789123456")
+		odxt.Keys[3] = []byte("0123456789123456")
 	}
 
 	// 初始化 UpdateCnt
@@ -134,7 +137,6 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) error {
 	}
 
 	// 读取所有记录
-	// keywordIds = keywordIds[:100]
 	for _, keywordId := range keywordIds {
 		valSet, ok := keywordId["val_set"].(primitive.A)
 		if !ok {

@@ -80,8 +80,6 @@ func (odxt *ODXT) Search(q []string) (time.Duration, time.Duration, []utils.SEOp
 		// 遍历 xtokenList
 		for _, xtoken := range xtokenList[j] {
 			// 判断 xtag 是否匹配
-			// log.Println("n.Pairing():", xtoken.Pairing())
-			// log.Println("m.Pairing():", alpha.Pairing())
 			xtag := pbcUtil.Pow(xtoken, alpha)
 			if _, ok := odxt.XSet[base64.StdEncoding.EncodeToString(xtag.Bytes())]; ok {
 				cnt++

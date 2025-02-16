@@ -74,10 +74,14 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 		}
 	} else {
 		// 读取私钥
-		hdxt.Mitra.Key, hdxt.Auhme.Keys, err = utils.HdxtReadKeys("./cmd/HDXT/configs/keys.txt")
-		if err != nil {
-			log.Fatal("Error reading keys:", err)
-		}
+		// hdxt.Mitra.Key, hdxt.Auhme.Keys, err = utils.HdxtReadKeys("./cmd/HDXT/configs/keys.txt")
+		// if err != nil {
+		// 	log.Fatal("Error reading keys:", err)
+		// }
+		hdxt.Mitra.Key = []byte("0123456789123456")
+		hdxt.Auhme.Keys[0] = []byte("0123456789123456")
+		hdxt.Auhme.Keys[1] = []byte("0123456789123456")
+		hdxt.Auhme.Keys[2] = []byte("0123456789123456")
 	}
 
 	// 连接MongoDB
@@ -402,12 +406,13 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 	totalTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	volumeList := make([]int, 0, len(keywordsList)+1)
 
-	clientTimeTotal := time.Duration(0)
-	serverTimeTotal := time.Duration(0)
+	
 
 	// 循环搜索
 	// keywordsList = keywordsList[:1]
 	for _, keywords := range keywordsList {
+		clientTimeTotal := time.Duration(0)
+		serverTimeTotal := time.Duration(0)
 		// 单关键词搜索, mitra part
 		// 选择查询频率最低的关键字
 		volume := 0
