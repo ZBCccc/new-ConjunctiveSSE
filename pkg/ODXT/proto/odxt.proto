@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package proto;
+option go_package = "pkg/ODXT/proto";
+
+service ODXTService {
+  rpc Update(stream UpdateRequest) returns (UpdateResponse) {}
+  rpc Search(SearchRequest) returns (SearchResponse) {}
+}
+
+message UpdateRequest {
+  map<string, int64> x_set = 1;
+  map<string, tset_value> t_set = 2;
+//  string xtag = 1;
+//  string address = 2;
+//  string val = 3;
+//  bytes alpha = 4;
+}
+message tset_value {
+  string val = 1;
+  bytes alpha = 2;
+}
+
+message UpdateResponse {
+  bool success = 1;
+}
+
+message SearchRequest {
+  repeated string stoken_list = 1;
+  repeated xtoken_list_2D xtoken_lists = 2;
+}
+
+message xtoken_list_2D {
+  repeated bytes xtoken_list = 1;
+}
+
+message SearchResponse {
+  repeated SEOp seop_list = 1;
+}
+
+message SEOp {
+  int64 j = 1;
+  string sval = 2;
+  int64 cnt = 3;
+}

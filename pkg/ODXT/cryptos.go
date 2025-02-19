@@ -5,7 +5,6 @@ import (
 	pbcUtil "ConjunctiveSSE/pkg/utils/pbc"
 	"encoding/base64"
 	"fmt"
-	"log"
 	"math/big"
 	"sync"
 	"time"
@@ -59,7 +58,7 @@ func (odxt *ODXT) encrypt(keyword string, id string, operation utils.Operation) 
 
 	// Encoded the ciphertext
 	odxt.XSet[base64.StdEncoding.EncodeToString(Xtag.Bytes())] = 1
-	odxt.TSet[base64.StdEncoding.EncodeToString(address)] = &tsetValue{base64.StdEncoding.EncodeToString(val), alpha}
+	odxt.TSet[base64.StdEncoding.EncodeToString(address)] = &TsetValue{base64.StdEncoding.EncodeToString(val), alpha}
 
 	return encryptedTime, nil
 }
@@ -76,7 +75,7 @@ func (odxt *ODXT) Search(q []string) (time.Duration, time.Duration, []utils.SEOp
 	// 搜索数据
 	for j, stoken := range stokenList {
 		cnt := 1
-		val, alpha := odxt.TSet[stoken].val, odxt.TSet[stoken].alpha
+		val, alpha := odxt.TSet[stoken].Val, odxt.TSet[stoken].Alpha
 		// 遍历 xtokenList
 		for _, xtoken := range xtokenList[j] {
 			// 判断 xtag 是否匹配
@@ -167,7 +166,7 @@ func (odxt *ODXT) Decrypt(q []string, sEOpList []utils.SEOp) ([]string, error) {
 		id := make([]byte, 31)
 		val, err := base64.StdEncoding.DecodeString(sval)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
 			return nil, err
 		}
 		for i := 0; i < 31; i++ {
