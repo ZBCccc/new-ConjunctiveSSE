@@ -19,10 +19,10 @@ const (
 )
 
 type TKL struct {
-	l, t string
+	L, T string
 }
 
-func (fdxt *FDXT) ClientSearchStep1(q []string) ([]*TKL, []string, [][]*pbc.Element, error) {
+func (fdxt *FDXT) ClientSearchStep1(q []string) (string, []*TKL, []string, [][]*pbc.Element, error) {
 	kw, kt, kx, kz := fdxt.Keys[0], fdxt.Keys[1], fdxt.Keys[2], fdxt.Keys[4]
 	counter, w1 := math.MaxInt64, q[0]
 	for _, w := range q {
@@ -35,7 +35,7 @@ func (fdxt *FDXT) ClientSearchStep1(q []string) ([]*TKL, []string, [][]*pbc.Elem
 	tklList := make([]*TKL, 0, 1000)
 	for _, w := range q {
 		if _, ok := fdxt.Count[w]; !ok {
-			return nil, nil, nil, fmt.Errorf("keyword %s not found", w)
+			return "", nil, nil, nil, fmt.Errorf("keyword %s not found", w)
 		}
 		srch, updt := fdxt.Count[w].srch, fdxt.Count[w].updt
 		for i := updt; i >= 1; i-- {
@@ -50,13 +50,13 @@ func (fdxt *FDXT) ClientSearchStep1(q []string) ([]*TKL, []string, [][]*pbc.Elem
 
 			l, err := utils.PrfF(kt, append(msg, byte(0)))
 			if err != nil {
-				return nil, nil, nil, err
+				return "", nil, nil, nil, err
 			}
 			t, err := utils.PrfF(kt, append(msg, byte(1)))
 			if err != nil {
-				return nil, nil, nil, err
+				return "", nil, nil, nil, err
 			}
-			tklList = append(tklList, &TKL{l: base64.StdEncoding.EncodeToString(l), t: base64.StdEncoding.EncodeToString(t)})
+			tklList = append(tklList, &TKL{L: base64.StdEncoding.EncodeToString(l), T: base64.StdEncoding.EncodeToString(t)})
 		}
 	}
 	STKL := make([]string, 0, 1000)
@@ -68,35 +68,35 @@ func (fdxt *FDXT) ClientSearchStep1(q []string) ([]*TKL, []string, [][]*pbc.Elem
 		msg = append(msg, big.NewInt(int64(j)).Bytes()...)
 		addr, err := utils.PrfF(kw, append(msg, byte(0)))
 		if err != nil {
-			return nil, nil, nil, err
+			return "", nil, nil, nil, err
 		}
 		STKL = append(STKL, base64.StdEncoding.EncodeToString(addr))
 		xtkList[j] = make([]*pbc.Element, 0, len(qt))
 		for _, w := range qt {
 			xtk1, err := pbcUtil.PrfToZr(kx, []byte(w))
 			if err != nil {
-				return nil, nil, nil, err
+				return "", nil, nil, nil, err
 			}
 			xtk2, err := pbcUtil.PrfToZr(kz, msg)
 			if err != nil {
-				return nil, nil, nil, err
+				return "", nil, nil, nil, err
 			}
 			xtk := pbcUtil.GToPower2(xtk1, xtk2)
 			xtkList[j] = append(xtkList[j], xtk)
 		}
 	}
-	return tklList, STKL, xtkList, nil
+	return w1, tklList, STKL, xtkList, nil
 }
 
 type RES struct {
-	val string
-	cnt int
+	Val string
+	Cnt int
 }
 
 func (fdxt *FDXT) ServerSearch(n int, tklList []*TKL, stklList []string, xtkList [][]*pbc.Element) ([]*RES, error) {
 	resList := make([]*RES, 0, len(stklList))
 	for _, tkl := range tklList {
-		l, t := tkl.l, tkl.t
+		l, t := tkl.L, tkl.T
 		c, err := base64.StdEncoding.DecodeString(fdxt.CDBXtag[l])
 		if err != nil {
 			return nil, err
@@ -110,7 +110,7 @@ func (fdxt *FDXT) ServerSearch(n int, tklList []*TKL, stklList []string, xtkList
 	}
 	for j, stkl := range stklList {
 		cnt := 1
-		val, alpha := fdxt.CDBTSet[stkl].val, fdxt.CDBTSet[stkl].alpha
+		val, alpha := fdxt.CDBTSet[stkl].Val, fdxt.CDBTSet[stkl].Alpha
 		for k := 0; k < n-1; k++ {
 			xtk := xtkList[j+1][k]
 			xtag := pbcUtil.Pow(xtk, alpha)
@@ -118,7 +118,7 @@ func (fdxt *FDXT) ServerSearch(n int, tklList []*TKL, stklList []string, xtkList
 				cnt++
 			}
 		}
-		resList = append(resList, &RES{val: val, cnt: cnt})
+		resList = append(resList, &RES{Val: val, Cnt: cnt})
 	}
 	return resList, nil
 }
@@ -126,7 +126,7 @@ func (fdxt *FDXT) ServerSearch(n int, tklList []*TKL, stklList []string, xtkList
 func (fdxt *FDXT) ClientSearchStep2(w1 string, ws []string, resList []*RES) ([]string, error) {
 	IDL := make([]string, 0, len(resList))
 	for j, res := range resList {
-		val, cnt := res.val, res.cnt
+		val, cnt := res.Val, res.Cnt
 		msgLen := len(w1) + len(big.NewInt(int64(j+1)).Bytes()) + 1
 		msg := make([]byte, 0, msgLen)
 		msg = append(msg, []byte(w1)...)

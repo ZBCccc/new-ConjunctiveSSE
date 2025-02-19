@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
-	"math"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -22,23 +21,24 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	pbcUtil "ConjunctiveSSE/pkg/utils/pbc"
+
 	"github.com/Nik-U/pbc"
 )
 
-type counter struct {
+type Counter struct {
 	srch, updt, max int
 }
 
-type tsetValue struct {
-	val   string
-	alpha *pbc.Element
+type TsetValue struct {
+	Val   string
+	Alpha *pbc.Element
 }
 
 type FDXT struct {
 	Keys    [5][]byte
-	Count   map[string]*counter
+	Count   map[string]*Counter
 	CDBXtag map[string]string
-	CDBTSet map[string]*tsetValue
+	CDBTSet map[string]*TsetValue
 	XSet    map[string]int
 }
 
@@ -75,9 +75,9 @@ func ReadKeys(fileName string) [5][]byte {
 
 func (fdxt *FDXT) Setup(dbName string) error {
 	fdxt.Keys = ReadKeys("./cmd/FDXT/configs/keys.txt")
-	fdxt.Count = make(map[string]*counter)
+	fdxt.Count = make(map[string]*Counter)
 	fdxt.CDBXtag = make(map[string]string)
-	fdxt.CDBTSet = make(map[string]*tsetValue)
+	fdxt.CDBTSet = make(map[string]*TsetValue)
 	fdxt.XSet = make(map[string]int, 1000000)
 
 	// 初始化mongodb
@@ -160,7 +160,7 @@ func (fdxt *FDXT) UpdatePhase() error {
 func (fdxt *FDXT) Encrypt(keyword string, ids []string, op Operation) (time.Duration, error) {
 	kw, kt, kx, ky, kz := fdxt.Keys[0], fdxt.Keys[1], fdxt.Keys[2], fdxt.Keys[3], fdxt.Keys[4]
 	if _, ok := fdxt.Count[keyword]; !ok {
-		fdxt.Count[keyword] = &counter{srch: 0, updt: 0, max: 0}
+		fdxt.Count[keyword] = &Counter{srch: 0, updt: 0, max: 0}
 	}
 	clientTime := time.Duration(0)
 	for _, id := range ids {
@@ -215,7 +215,7 @@ func (fdxt *FDXT) Encrypt(keyword string, ids []string, op Operation) (time.Dura
 
 		// server part
 		fdxt.CDBXtag[base64.StdEncoding.EncodeToString(l)] = base64.StdEncoding.EncodeToString(c)
-		fdxt.CDBTSet[base64.StdEncoding.EncodeToString(addr)] = &tsetValue{val: base64.StdEncoding.EncodeToString(val), alpha: alpha}
+		fdxt.CDBTSet[base64.StdEncoding.EncodeToString(addr)] = &TsetValue{Val: base64.StdEncoding.EncodeToString(val), Alpha: alpha}
 	}
 	return clientTime, nil
 }
@@ -236,18 +236,10 @@ func (fdxt *FDXT) SearchPhase(tableName, fileName string) error {
 		clientTimeTotal := time.Duration(0)
 		serverTimeTotal := time.Duration(0)
 		totalStart := time.Now()
-		counter, w1 := math.MaxInt64, keywords[0]
-		for _, w := range keywords {
-			num := fdxt.Count[w].max
-			if num < counter {
-				w1 = w
-				counter = num
-			}
-		}
 
 		// client search step 1
 		start := time.Now()
-		tkl, stkl, xtkList, err := fdxt.ClientSearchStep1(keywords)
+		w1, tkl, stkl, xtkList, err := fdxt.ClientSearchStep1(keywords)
 		if err != nil {
 			log.Println(err)
 			return err
@@ -286,7 +278,7 @@ func (fdxt *FDXT) SearchPhase(tableName, fileName string) error {
 	resultpath := filepath.Join("result", "Search", "FDXT", tableName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
-	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime","resultLength", "payloadSize"}
+	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength", "payloadSize"}
 
 	// 将结果数据整理成表格形式
 	resultData := make([][]string, len(resultList))
@@ -305,7 +297,7 @@ func (fdxt *FDXT) SearchPhase(tableName, fileName string) error {
 func CalculateResListSize(resList []*RES) int {
 	size := 0
 	for _, res := range resList {
-		size += len(res.val)
+		size += len(res.Val)
 		size += 4
 	}
 	return size

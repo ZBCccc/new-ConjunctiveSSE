@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package proto;
+option go_package = "pkg/FDXT/proto";
+
+service FDXTService {
+  rpc Update(stream UpdateRequest) returns (UpdateResponse) {}
+  rpc Search(SearchRequest) returns (SearchResponse) {}
+}
+
+message UpdateRequest {
+  map<string, string> CDBXtag = 1;
+  map<string, tset_value> CDBTset = 2;
+}
+
+message tset_value {
+  string val = 1;
+  bytes alpha = 2;
+}
+
+message UpdateResponse {
+  bool success = 1;
+}
+
+message SearchRequest {
+  repeated TKL tkl_list = 1;
+  repeated string stkl_list = 2;
+  repeated xtoken_list_2D xtoken_lists = 3;
+  int64 n = 4;
+}
+
+message TKL {
+    string l = 1;
+    string t = 2;
+}
+
+message xtoken_list_2D {
+  repeated bytes xtoken_list = 1;
+}
+
+message SearchResponse {
+  repeated RES res_list = 1;
+}
+
+message RES {
+  string sval = 1;
+  int64 cnt = 2;
+}

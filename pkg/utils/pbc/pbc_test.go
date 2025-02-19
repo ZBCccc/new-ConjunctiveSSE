@@ -83,3 +83,16 @@ func TestPow(t *testing.T) {
 		t.Error("Pow result is incorrect")
 	}
 }
+
+func TestBytesToElement(t *testing.T) {
+	key := []byte("testkey")
+	message := []byte("testmessage")
+
+	zr, _ := PrfToZr(key, message)
+	g := GToPower(zr)
+	bytesN := g.Bytes()
+	expected := BytesToG1(bytesN)
+	if !g.Equals(expected) {
+		t.Error("BytesToElement result is incorrect")
+	}
+}

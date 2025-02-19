@@ -1,7 +1,7 @@
 package main
 
 import (
-	"ConjunctiveSSE/pkg/FDHXT"
+	"ConjunctiveSSE/pkg/FDXT"
 	"encoding/json"
 	"fmt"
 	"os"

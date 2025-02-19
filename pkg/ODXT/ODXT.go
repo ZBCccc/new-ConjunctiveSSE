@@ -6,7 +6,6 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"log"
 	"math"
@@ -24,9 +23,9 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-type tsetValue struct {
-	val   string
-	alpha *pbc.Element
+type TsetValue struct {
+	Val   string
+	Alpha *pbc.Element
 }
 
 var (
@@ -40,7 +39,7 @@ const (
 type ODXT struct {
 	Keys      [4][]byte
 	UpdateCnt map[string]int
-	TSet      map[string]*tsetValue
+	TSet      map[string]*TsetValue
 	XSet      map[string]int
 }
 
@@ -58,13 +57,18 @@ func ReadKeys(fileName string) [4][]byte {
 
 	// 读取4个密钥
 	for i := 0; i < 4; i++ {
-		line := scanner.Text()
-		key, err := base64.StdEncoding.DecodeString(line)
-		if err != nil {
-			log.Fatal(err)
+		if !scanner.Scan() {
+			log.Fatal("文件行数不足")
 		}
-
-		keys[i] = key
+		line := scanner.Text()
+		// PKCS7 填充
+		padding := 16 - (len(line) % 16)
+		padtext := make([]byte, len(line)+padding)
+		copy(padtext, line)
+		for i := len(line); i < len(padtext); i++ {
+			padtext[i] = byte(padding)
+		}
+		keys[i] = padtext
 	}
 
 	return keys
@@ -88,6 +92,7 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 		odxt.Keys[1] = []byte("0123456789123456")
 		odxt.Keys[2] = []byte("0123456789123456")
 		odxt.Keys[3] = []byte("0123456789123456")
+		// odxt.Keys = ReadKeys(keysPath)
 	}
 
 	// 初始化 UpdateCnt
@@ -95,7 +100,7 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 
 	// 初始化 XSet 和 TSet
 	odxt.XSet = make(map[string]int)
-	odxt.TSet = make(map[string]*tsetValue)
+	odxt.TSet = make(map[string]*TsetValue)
 
 	// 连接MongoDB
 	var err error

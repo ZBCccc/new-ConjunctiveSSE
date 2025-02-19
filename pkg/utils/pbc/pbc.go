@@ -71,3 +71,12 @@ func ZrDiv(n, m *pbc.Element) *pbc.Element {
 func Pow(n, m *pbc.Element) *pbc.Element {
 	return pairing.NewG1().PowZn(n, m)
 }
+
+// BytesToElement converts a byte slice to a pbc.Element
+func BytesToZr(b []byte) *pbc.Element {
+	return pairing.NewZr().SetBytes(b)
+}
+
+func BytesToG1(b []byte) *pbc.Element {
+	return pairing.NewG1().SetBytes(b)
+}
