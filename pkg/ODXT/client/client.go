@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/base64"
 	"math/big"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -150,19 +151,27 @@ func Encrypt(odxt *ODXT.ODXT, keyword string, id string, operation utils.Operati
 	return base64.StdEncoding.EncodeToString(Xtag.Bytes()), base64.StdEncoding.EncodeToString(address), base64.StdEncoding.EncodeToString(val), alpha.Bytes()
 }
 
-func (c *ODXTClient) Search(keywords []string) ([]string, error) {
+func (c *ODXTClient) Search(keywords []string) (time.Duration, time.Duration, []string, error) {
 	// client search step 1
+	clientTime := time.Now()
 	stokenList, xtokenList := c.GetODXT().ClientSearchStep1(keywords)
-
+	clientTimeDura := time.Since(clientTime)
+	
 	// send search request
+	serverTime := time.Now()
 	resp, err := c.client.Search(context.Background(), &pb.SearchRequest{
 		StokenList:  stokenList,
 		XtokenLists: convertToXtokenList_2D(xtokenList),
 	})
 	if err != nil {
-		return nil, err
+		return 0, 0, nil, err
 	}
+	serverTimeDura := time.Since(serverTime)
 
 	// client search step 2
-	return c.GetODXT().Decrypt(keywords, convertToSEOp(resp.GetSeopList()))
+	ids, err := c.GetODXT().Decrypt(keywords, convertToSEOp(resp.GetSeopList()))
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	return clientTimeDura, serverTimeDura, ids, nil 
 }

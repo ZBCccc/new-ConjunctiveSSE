@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"sync"
 
 	"github.com/Nik-U/pbc"
 )
@@ -59,32 +60,41 @@ func (fdxt *FDXT) ClientSearchStep1(q []string) (string, []*TKL, []string, [][]*
 			tklList = append(tklList, &TKL{L: base64.StdEncoding.EncodeToString(l), T: base64.StdEncoding.EncodeToString(t)})
 		}
 	}
-	STKL := make([]string, 0, 1000)
+	STKL := make([]string, fdxt.Count[w1].max)
 	xtkList := make([][]*pbc.Element, fdxt.Count[w1].max+1)
 	qt := utils.RemoveElement(q, w1)
+	var wg sync.WaitGroup
 	for j := 1; j <= fdxt.Count[w1].max; j++ {
-		msg := make([]byte, 0, len(w1)+len(big.NewInt(int64(j)).Bytes())+1)
-		msg = append(msg, []byte(w1)...)
-		msg = append(msg, big.NewInt(int64(j)).Bytes()...)
-		addr, err := utils.PrfF(kw, append(msg, byte(0)))
-		if err != nil {
-			return "", nil, nil, nil, err
-		}
-		STKL = append(STKL, base64.StdEncoding.EncodeToString(addr))
-		xtkList[j] = make([]*pbc.Element, 0, len(qt))
-		for _, w := range qt {
-			xtk1, err := pbcUtil.PrfToZr(kx, []byte(w))
+		wg.Add(1)
+		go func(j int)  {
+			defer wg.Done()
+			msg := make([]byte, 0, len(w1)+len(big.NewInt(int64(j)).Bytes())+1)
+			msg = append(msg, []byte(w1)...)
+			msg = append(msg, big.NewInt(int64(j)).Bytes()...)
+			addr, err := utils.PrfF(kw, append(msg, byte(0)))
 			if err != nil {
-				return "", nil, nil, nil, err
+				fmt.Println(err)
+				return
 			}
-			xtk2, err := pbcUtil.PrfToZr(kz, msg)
-			if err != nil {
-				return "", nil, nil, nil, err
+			STKL[j-1] = base64.StdEncoding.EncodeToString(addr)
+			xtkList[j] = make([]*pbc.Element, 0, len(qt))
+			for _, w := range qt {
+				xtk1, err := pbcUtil.PrfToZr(kx, []byte(w))
+				if err != nil {
+					fmt.Println(err)
+					return
+				}
+				xtk2, err := pbcUtil.PrfToZr(kz, msg)
+				if err != nil {
+					fmt.Println(err)	
+					return
+				}
+				xtk := pbcUtil.GToPower2(xtk1, xtk2)
+				xtkList[j] = append(xtkList[j], xtk)
 			}
-			xtk := pbcUtil.GToPower2(xtk1, xtk2)
-			xtkList[j] = append(xtkList[j], xtk)
-		}
+		}(j)
 	}
+	wg.Wait()
 	return w1, tklList, STKL, xtkList, nil
 }
 

@@ -122,6 +122,17 @@ func (odxt *ODXT) ClientSearchStep1(q []string) ([]string, [][]*pbc.Element) {
 		xtokenList[i] = make([]*pbc.Element, len(q)-1)
 	}
 	qt := utils.RemoveElement(q, w1)
+	xtoken1List := make([]*pbc.Element, len(qt))
+	var wgz sync.WaitGroup
+	for i, wi := range qt {
+		wgz.Add(1)
+		go func(i int, wi string) {
+			defer wgz.Done()
+			xtoken1, _ := pbcUtil.PrfToZr(kx, []byte(wi))
+			xtoken1List[i] = xtoken1
+		}(i, wi)
+	}
+	wgz.Wait()
 	var wg sync.WaitGroup
 	for j := 0; j < counter; j++ {
 		wg.Add(1)
@@ -133,13 +144,18 @@ func (odxt *ODXT) ClientSearchStep1(q []string) ([]string, [][]*pbc.Element) {
 				return
 			}
 			stokenList[j] = base64.StdEncoding.EncodeToString(saddr)
-
-			for i, wi := range qt {
-				xtoken1, _ := pbcUtil.PrfToZr(kx, []byte(wi))
-				xtoken2, _ := pbcUtil.PrfToZr(kz, append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...))
-				xtoken := pbcUtil.GToPower2(xtoken1, xtoken2)
-				xtokenList[j][i] = xtoken
+			xtoken2, _ := pbcUtil.PrfToZr(kz, append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...))
+			var wgg sync.WaitGroup
+			for i := range qt {
+				wgg.Add(1)
+				go func(i, j int) {
+					defer wgg.Done()
+					xtoken1 := xtoken1List[i]
+					xtoken := pbcUtil.GToPower2(xtoken1, xtoken2)
+					xtokenList[j][i] = xtoken
+				}(i, j)
 			}
+			wgg.Wait()
 		}(j)
 	}
 	wg.Wait()
