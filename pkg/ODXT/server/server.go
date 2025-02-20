@@ -7,8 +7,10 @@ import (
 	pbcUtil "ConjunctiveSSE/pkg/utils/pbc"
 	"context"
 	"encoding/base64"
-	"github.com/Nik-U/pbc"
 	"io"
+	"sync"
+
+	"github.com/Nik-U/pbc"
 )
 
 type ODXTServer struct {
@@ -73,22 +75,37 @@ func (s *ODXTServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Sea
 	}
 	sEOpList := make([]utils.SEOp, len(stokenList))
 	// 搜索数据
+	var wg sync.WaitGroup
 	for j, stoken := range stokenList {
-		cnt := 1
-		val, alpha := s.TSet[stoken].Val, s.TSet[stoken].Alpha
-		// 遍历 xtokenList
-		for _, xtoken := range xtokenList[j] {
-			// 判断 xtag 是否匹配
-			xtag := pbcUtil.Pow(xtoken, alpha)
-			if _, ok := s.XSet[base64.StdEncoding.EncodeToString(xtag.Bytes())]; ok {
-				cnt++
+		wg.Add(1)
+		go func (j int)  {
+			defer wg.Done()
+			cnt := 1
+			val, alpha := s.TSet[stoken].Val, s.TSet[stoken].Alpha
+			// 遍历 xtokenList
+			var mu sync.Mutex
+			var wgg sync.WaitGroup
+			for _, xtoken := range xtokenList[j] {
+				// 判断 xtag 是否匹配
+				wgg.Add(1)
+				go func (xtoken *pbc.Element)  {
+					defer wgg.Done()
+					xtag := pbcUtil.Pow(xtoken, alpha)
+					if _, ok := s.XSet[base64.StdEncoding.EncodeToString(xtag.Bytes())]; ok {
+						mu.Lock()
+						cnt++
+						mu.Unlock()
+					}
+				}(xtoken)
 			}
-		}
-		sEOpList[j] = utils.SEOp{
-			J:    j + 1,
-			Sval: val,
-			Cnt:  cnt,
-		}
+			wgg.Wait()
+			sEOpList[j] = utils.SEOp{
+				J:    j + 1,
+				Sval: val,
+				Cnt:  cnt,
+			}
+		}(j)
 	}
+	wg.Wait()
 	return &pb.SearchResponse{SeopList: convertSEOpList(sEOpList)}, nil
 }
