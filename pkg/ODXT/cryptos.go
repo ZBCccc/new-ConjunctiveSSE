@@ -73,23 +73,29 @@ func (odxt *ODXT) Search(q []string) (time.Duration, time.Duration, []utils.SEOp
 	sEOpList := make([]utils.SEOp, len(stokenList))
 	start = time.Now()
 	// 搜索数据
+	var wg sync.WaitGroup
 	for j, stoken := range stokenList {
-		cnt := 1
-		val, alpha := odxt.TSet[stoken].Val, odxt.TSet[stoken].Alpha
-		// 遍历 xtokenList
-		for _, xtoken := range xtokenList[j] {
-			// 判断 xtag 是否匹配
-			xtag := pbcUtil.Pow(xtoken, alpha)
-			if _, ok := odxt.XSet[base64.StdEncoding.EncodeToString(xtag.Bytes())]; ok {
-				cnt++
+		wg.Add(1)
+		go func (j int)  {
+			defer wg.Done()
+			cnt := 1
+			val, alpha := odxt.TSet[stoken].Val, odxt.TSet[stoken].Alpha
+			// 遍历 xtokenList
+			for _, xtoken := range xtokenList[j] {
+				// 判断 xtag 是否匹配
+				xtag := pbcUtil.Pow(xtoken, alpha)
+				if _, ok := odxt.XSet[base64.StdEncoding.EncodeToString(xtag.Bytes())]; ok {
+					cnt++
+				}
 			}
-		}
-		sEOpList[j] = utils.SEOp{
-			J:    j + 1,
-			Sval: val,
-			Cnt:  cnt,
-		}
+			sEOpList[j] = utils.SEOp{
+				J:    j + 1,
+				Sval: val,
+				Cnt:  cnt,
+			}
+		}(j)
 	}
+	wg.Wait()
 	serverTime := time.Since(start)
 	return trapdoorTime, serverTime, sEOpList
 }
