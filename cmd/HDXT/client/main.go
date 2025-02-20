@@ -18,10 +18,11 @@ import (
 )
 
 func main() {
-    c, err := client.NewHDXTClient("localhost:50051")
+    c, err := client.NewHDXTClient("10.12.188.9:50051")
     if err != nil {
         log.Fatalf("failed to create client: %v", err)
     }
+	defer c.Close()
     
     // 执行实验
 	// 获取MongoDB数据库

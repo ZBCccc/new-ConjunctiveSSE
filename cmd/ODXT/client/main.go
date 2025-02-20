@@ -5,6 +5,7 @@ import (
 	"ConjunctiveSSE/pkg/ODXT/client"
 	"ConjunctiveSSE/pkg/utils"
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -18,21 +19,36 @@ import (
 )
 
 func main() {
-	c, err := client.NewODXTClient("localhost:50051")
+	fn := flag.String("fn", "", "要执行的函数名 (Update 或 Search)")
+	flag.Parse()
+	c, err := client.NewODXTClient("10.12.188.9:50051")
 	if err != nil {
 		log.Fatalf("failed to create client: %v", err)
 	}
 
-	// 执行实验
-	dbName := "Crime_USENIX_REV"
-	updateTime := time.Now()
-	UpdatePhase(c, dbName)
-	log.Printf("Update phase to %v\n", time.Since(updateTime))
+	switch *fn {
+	case "Update":
+		dbName := "Crime_USENIX_REV"
+		updateTime := time.Now()
+		UpdatePhase(c, dbName)
+		log.Printf("Update phase to %v\n", time.Since(updateTime))
+	case "Search":
+		searchTime := time.Now()
+		dbName := "Crime_USENIX_REV"
+		SearchPhase(c, dbName)
+		log.Printf("Search phase to %v\n", time.Since(searchTime))
 
-	// Search Phase
-	searchTime := time.Now()
-	SearchPhase(c, dbName)
-	log.Printf("Search phase to %v\n", time.Since(searchTime))
+	default:
+		dbName := "Crime_USENIX_REV"
+		updateTime := time.Now()
+		UpdatePhase(c, dbName)
+		log.Printf("Update phase to %v\n", time.Since(updateTime))
+
+		// Search Phase
+		searchTime := time.Now()
+		SearchPhase(c, dbName)
+		log.Printf("Search phase to %v\n", time.Since(searchTime))
+	}
 }
 
 func UpdatePhase(c *client.ODXTClient, dbName string) {
@@ -126,12 +142,15 @@ func SearchPhase(c *client.ODXTClient, dbName string) {
 	// 初始化结果列表
 	resultList := make([][]string, 0, len(keywordsList)+1)
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
+	clientTimeList := make([]time.Duration, 0, len(keywordsList)+1)
+	serverTimeList := make([]time.Duration, 0, len(keywordsList)+1)
+
 	totalTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 
 	// 循环搜索
 	for _, keywords := range keywordsList {
 		totalStart := time.Now()
-		sIdList, err := c.Search(keywords)
+		clientTime, serverTime, sIdList, err := c.Search(keywords)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -139,6 +158,8 @@ func SearchPhase(c *client.ODXTClient, dbName string) {
 
 		// 将结果添加到结果列表
 		resultList = append(resultList, sIdList)
+		clientTimeList = append(clientTimeList, clientTime)
+		serverTimeList = append(serverTimeList, serverTime)
 		totalTimeList = append(totalTimeList, totalTime) // totalTimeList = totalTime
 		resultLengthList = append(resultLengthList, len(sIdList))
 	}
@@ -147,12 +168,12 @@ func SearchPhase(c *client.ODXTClient, dbName string) {
 	resultpath := filepath.Join("result", "Search", "ODXT", dbName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
-	resultHeader := []string{"keyword", "totalTime", "resultLength"}
+	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength"}
 
 	// 将结果数据整理成表格形式
 	resultData := make([][]string, len(resultList))
 	for i, keywords := range keywordsList {
-		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i])}
+		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientTimeList[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i])}
 	}
 
 	// 将结果写入文件

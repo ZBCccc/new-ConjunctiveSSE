@@ -19,7 +19,7 @@ import (
 )
 
 func main() {
-	c, err := client.NewFDXTClient("localhost:50053")
+	c, err := client.NewFDXTClient("10.12.188.9:50051")
 	if err != nil {
 		log.Fatalf("failed to create client: %v", err)
 	}

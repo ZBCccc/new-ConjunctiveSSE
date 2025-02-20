@@ -5,25 +5,38 @@ import (
 	pb "ConjunctiveSSE/pkg/HDXT/proto"
 	"ConjunctiveSSE/pkg/utils"
 	"context"
+	"log"
 	"math"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 )
 
 type HDXTClient struct {
 	hdxt   *HDXT.HDXT
 	client pb.HDXTServiceClient
+	conn   *grpc.ClientConn
 }
 
 func NewHDXTClient(serverAddr string) (*HDXTClient, error) {
-	conn, err := grpc.Dial(
+	// 添加 keepalive 参数
+	kacp := keepalive.ClientParameters{
+		Time:                3 * time.Second, // 每10秒发送ping
+		Timeout:             2 * time.Second, // ping超时时间
+		PermitWithoutStream: true,            // 允许在没有活动流的情况下发送ping
+	}
+	conn, err := grpc.NewClient(
 		serverAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithKeepaliveParams(kacp),
 		grpc.WithDefaultCallOptions(
 			grpc.MaxCallRecvMsgSize(100*1024*1024), // 100MB
 			grpc.MaxCallSendMsgSize(100*1024*1024), // 100MB
 		),
+		grpc.WithTimeout(10*time.Minute),
+		grpc.WithBlock(),
 	)
 	if err != nil {
 		return nil, err
@@ -33,6 +46,7 @@ func NewHDXTClient(serverAddr string) (*HDXTClient, error) {
 	return &HDXTClient{
 		hdxt:   &hdxt,
 		client: pb.NewHDXTServiceClient(conn),
+		conn:   conn,
 	}, nil
 }
 
@@ -40,7 +54,17 @@ func (c *HDXTClient) GetHDXT() *HDXT.HDXT {
 	return c.hdxt
 }
 
+func (c *HDXTClient) Close() error {
+	if c.conn != nil {
+		return c.conn.Close()
+	}
+	return nil
+}
+
 func (c *HDXTClient) Setup(mitraCipherList map[string]string, auhmeCipherList map[string]string) error {
+	// 检查连接状态
+	state := c.conn.GetState()
+	log.Printf("Connection state before Setup: %v", state)
 	// 发送密文到服务器
 	stream, err := c.client.Setup(context.Background())
 	if err != nil {
@@ -48,55 +72,60 @@ func (c *HDXTClient) Setup(mitraCipherList map[string]string, auhmeCipherList ma
 	}
 
 	// 分批发送数据
-    const batchSize = 1000
-    count := 0
-    batch := &pb.SetupRequest{
-        MitraCiphers: make(map[string]string),
-        AuhmeCiphers: make(map[string]string),
-    }
+	const batchSize = 1000
+	count := 0
+	batch := &pb.SetupRequest{
+		MitraCiphers: make(map[string]string),
+		AuhmeCiphers: make(map[string]string),
+	}
 
-    // 发送 MitraCiphers
-    for k, v := range mitraCipherList {
-        batch.MitraCiphers[k] = v
-        count++
-        
-        if count >= batchSize {
-            if err := stream.Send(batch); err != nil {
-                return err
-            }
-            batch = &pb.SetupRequest{
-                MitraCiphers: make(map[string]string),
-                AuhmeCiphers: make(map[string]string),
-            }
-            count = 0
-        }
-    }
+	// 发送 MitraCiphers
+	for k, v := range mitraCipherList {
+		batch.MitraCiphers[k] = v
+		count++
 
-     // 发送 AuhmeCiphers
-     for k, v := range auhmeCipherList {
-        batch.AuhmeCiphers[k] = v
-        count++
-        
-        if count >= batchSize {
-            if err := stream.Send(batch); err != nil {
-                return err
-            }
-            batch = &pb.SetupRequest{
-                MitraCiphers: make(map[string]string),
-                AuhmeCiphers: make(map[string]string),
-            }
-            count = 0
-        }
-    }
+		if count >= batchSize {
+			if err := stream.Send(batch); err != nil {
+				return err
+			}
+			batch = &pb.SetupRequest{
+				MitraCiphers: make(map[string]string),
+				AuhmeCiphers: make(map[string]string),
+			}
+			count = 0
+		}
+	}
 
-    // 发送最后一批数据并关闭流
-    if count > 0 {
-        if err := stream.Send(batch); err != nil {
-            return err
-        }
-    }
-    
-    _, err = stream.CloseAndRecv()
+	// 发送 AuhmeCiphers
+	for k, v := range auhmeCipherList {
+		batch.AuhmeCiphers[k] = v
+		count++
+
+		if count >= batchSize {
+			if err := stream.Send(batch); err != nil {
+				return err
+			}
+			batch = &pb.SetupRequest{
+				MitraCiphers: make(map[string]string),
+				AuhmeCiphers: make(map[string]string),
+			}
+			count = 0
+		}
+	}
+
+	// 发送最后一批数据并关闭流
+	if count > 0 {
+		if err := stream.Send(batch); err != nil {
+			return err
+		}
+	}
+
+	_, err = stream.CloseAndRecv()
+	if err != nil {
+		return err
+	}
+	state = c.conn.GetState()
+	log.Printf("Connection state after Setup: %v", state)
 	return err
 }
 
@@ -126,11 +155,11 @@ func (c *HDXTClient) SearchOneKeyword(keyword string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-    ids, err := HDXT.MitraDecrypt(c.hdxt, keyword, resp.GetEncryptedIds())
-    if err != nil {
-        return nil, err
-    }
-    return ids, nil
+	ids, err := HDXT.MitraDecrypt(c.hdxt, keyword, resp.GetEncryptedIds())
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 func (c *HDXTClient) Search(keywords []string) ([]string, error) {
