@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"sync"
 
 	"github.com/Nik-U/pbc"
 )
@@ -94,7 +95,7 @@ type RES struct {
 }
 
 func (fdxt *FDXT) ServerSearch(n int, tklList []*TKL, stklList []string, xtkList [][]*pbc.Element) ([]*RES, error) {
-	resList := make([]*RES, 0, len(stklList))
+	resList := make([]*RES, len(stklList))
 	for _, tkl := range tklList {
 		l, t := tkl.L, tkl.T
 		c, err := base64.StdEncoding.DecodeString(fdxt.CDBXtag[l])
@@ -108,17 +109,23 @@ func (fdxt *FDXT) ServerSearch(n int, tklList []*TKL, stklList []string, xtkList
 		xtag := utils.BytesXOR(c, tBytes)
 		fdxt.XSet[base64.StdEncoding.EncodeToString(xtag)] = 1
 	}
-	for j, stkl := range stklList {
-		cnt := 1
-		val, alpha := fdxt.CDBTSet[stkl].Val, fdxt.CDBTSet[stkl].Alpha
-		for k := 0; k < n-1; k++ {
-			xtk := xtkList[j+1][k]
-			xtag := pbcUtil.Pow(xtk, alpha)
-			if _, ok := fdxt.XSet[base64.StdEncoding.EncodeToString(xtag.Bytes())]; ok {
-				cnt++
+	var wg sync.WaitGroup
+	for j := range stklList {
+		wg.Add(1)
+		go func(j int) {
+			defer wg.Done()
+			cnt := 1
+			val, alpha := fdxt.CDBTSet[stklList[j]].Val, fdxt.CDBTSet[stklList[j]].Alpha
+			for k := 0; k < n-1; k++ {
+				xtk := xtkList[j+1][k]
+				xtag := pbcUtil.Pow(xtk, alpha)
+				if _, ok := fdxt.XSet[base64.StdEncoding.EncodeToString(xtag.Bytes())]; ok {
+					cnt++
+				}
 			}
-		}
-		resList = append(resList, &RES{Val: val, Cnt: cnt})
+			resList = append(resList, &RES{Val: val, Cnt: cnt})
+		}(j)
+		wg.Wait()
 	}
 	return resList, nil
 }
