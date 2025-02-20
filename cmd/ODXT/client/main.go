@@ -18,7 +18,7 @@ import (
 )
 
 func main() {
-	c, err := client.NewODXTClient("localhost:50052")
+	c, err := client.NewODXTClient("10.12.188.9:50051")
 	if err != nil {
 		log.Fatalf("failed to create client: %v", err)
 	}
