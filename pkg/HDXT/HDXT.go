@@ -10,6 +10,7 @@ import (
 	"log"
 	"math"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -91,7 +92,7 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 	}
 
 	// 获取keyword数量
-	universeKeywords, err = Database.GetUniqueValSets(hdxt.PlaintextDB)
+	universeKeywords, err = Database.GetUniqueKeywords(hdxt.PlaintextDB)
 	if err != nil {
 		log.Fatal("Error getting universeKeywords:", err)
 	}
@@ -115,6 +116,49 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 	hdxt.AuhmeCipherList = make(map[string]string)
 
 	return nil
+}
+
+// 替代一次性加载全部数据
+func loadDataInBatches(collection *mongo.Collection) {
+    batchSize := 1000
+    skip := 0
+    
+    for {
+        // 查询一批数据
+        opts := options.Find().SetLimit(int64(batchSize)).SetSkip(int64(skip))
+        cursor, err := collection.Find(context.Background(), bson.M{}, opts)
+        if err != nil {
+            log.Fatal(err)
+        }
+        
+        // 处理这批数据
+        var idKeywords []bson.M
+		if err = cursor.All(context.Background(), &idKeywords); err != nil {
+			log.Fatal("Error getting keywordIds:", err)
+		}
+        
+        // 如果没有更多数据，退出循环
+        if len(idKeywords) == 0 {
+            break
+        }
+        
+        // 处理这批数据
+        processDataBatch(idKeywords)
+        
+        // 更新skip以获取下一批
+        skip += len(idKeywords)
+        
+        // 可选：手动触发GC
+        runtime.GC()
+    }
+}
+
+func processDataBatch(batch []bson.M) {
+    // 处理每一批数据
+    for _, item := range batch {
+        // 加密和处理数据
+        // 将结果存入map或其他数据结构
+    }
 }
 
 func (hdxt *HDXT) SetupPhase() error {
@@ -150,7 +194,7 @@ func (hdxt *HDXT) SetupPhase() error {
 	idList := make([]string, 0, len(idKeywords)/2)
 	volumeList := make([]int, 0, len(idKeywords)/2)
 	for _, idKeyword := range idKeywordsSetup {
-		valSet, ok := idKeyword["val_st"].(primitive.A)
+		valSet, ok := idKeyword["keywords"].(primitive.A)
 		if !ok {
 			log.Println("val_set is not of type primitive.A")
 			return err
@@ -164,7 +208,6 @@ func (hdxt *HDXT) SetupPhase() error {
 				return err
 			}
 		}
-		keywords = utils.RemoveDuplicates(keywords) // 对keywords去重
 		id := idKeyword["id"].(string)
 		encryptTime, err := hdxt.Setup(id, keywords, Add)
 		if err != nil {
@@ -195,7 +238,7 @@ func (hdxt *HDXT) SetupPhase() error {
 	idKeywordsUpdate := idKeywords[len(idKeywords)/2:]
 	volumeList = make([]int, 0, len(idKeywords)/2)
 	for _, idKeyword := range idKeywordsUpdate {
-		valSet, ok := idKeyword["val_st"].(primitive.A)
+		valSet, ok := idKeyword["keywords"].(primitive.A)
 		if !ok {
 			log.Println("val_set is not of type primitive.A")
 			return err
@@ -209,7 +252,7 @@ func (hdxt *HDXT) SetupPhase() error {
 				return err
 			}
 		}
-		keywords = utils.RemoveDuplicates(keywords) // 对keyword去重
+		
 		id := idKeyword["id"].(string)
 		encryptTime, tokList, err := hdxt.Encrypt(id, keywords, Add)
 		if err != nil {
@@ -366,7 +409,7 @@ func (hdxt *HDXT) EditPair(id, keyword string, operation Operation) (*UTok, erro
 		s = make([]string, 0)
 		for _, keyword := range universeKeywords {
 			for _, id := range universeIDs {
-				enc, err := utils.FAesni(hdxt.Auhme.Keys[0], []byte(keyword+id), 1)
+				enc, err := PrfF(hdxt.Auhme.Keys[0], []byte(keyword+id))
 				if err != nil {
 					log.Println("Error in EditPair:", err)
 					return nil, err
@@ -406,7 +449,7 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 	volumeList := make([]int, 0, len(keywordsList)+1)
 
 	// 循环搜索
-	keywordsList = keywordsList[:1]
+	// keywordsList = keywordsList[:1]
 	for _, keywords := range keywordsList {
 		clientTimeTotal := time.Duration(0)
 		serverTimeTotal := time.Duration(0)
@@ -422,6 +465,7 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 				counter = num
 			}
 		}
+		// fmt.Println("w1 size: ", hdxt.FileCnt[w1])
 		trapdoorTime, serverTime, w1Ids, err := hdxt.SearchOneKeyword(w1)
 		if err != nil {
 			log.Fatal(err)
@@ -442,7 +486,7 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 
 		// server search step
 		start = time.Now()
-		
+
 		posList := auhmeServerSearch(hdxt, dkList)
 		serverTimeTotal += time.Since(start)
 

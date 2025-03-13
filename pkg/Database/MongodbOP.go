@@ -103,15 +103,15 @@ func GenQuerydataFromDB(dbName, tableName string, numPairs int) error {
 	return nil
 }
 
-func GetUniqueValSets(PlaintextDB *mongo.Database) ([]string, error) {
+func GetUniqueKeywords(PlaintextDB *mongo.Database) ([]string, error) {
 	// 获取集合句柄
 	collection := PlaintextDB.Collection("id_keywords")
 	ctx := context.TODO()
 
 	// 使用聚合管道提取并去重val_set
 	pipeline := mongo.Pipeline{
-		{{Key: "$unwind", Value: "$val_st"}},                             // 展开val_set数组
-		{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$val_st"}}}}, // 按val_set的值进行分组，实现去重
+		{{Key: "$unwind", Value: "$keywords"}},                             // 展开val_set数组
+		{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$keywords"}}}}, // 按val_set的值进行分组，实现去重
 	}
 	// 执行聚合查询
 	cursor, err := collection.Aggregate(ctx, pipeline)

@@ -34,7 +34,7 @@ func TestMongoDBCount(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	uniqueVals, err := Database.GetUniqueValSets(db)
+	uniqueVals, err := Database.GetUniqueKeywords(db)
 	if err != nil {
 		t.Fatal(err)
 	}

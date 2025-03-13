@@ -70,9 +70,8 @@ func CiphertextGenPhase(dbName string) error {
 	}
 
 	// 读取所有记录
-	// keywordIds = keywordIds[:100]
 	for _, keywordId := range keywordIds {
-		valSet, ok := keywordId["val_set"].(primitive.A)
+		valSet, ok := keywordId["ids"].(primitive.A)
 		if !ok {
 			log.Println("val_set is not of type primitive.A")
 			continue
@@ -146,7 +145,7 @@ func SearchPhase(tableName, fileName string) {
 				counter = num
 			}
 		}
-		counterList = append(counterList, counter)
+		counterList = append(counterList, counter+1)
 		result, clientTime, serverTime := client.Search(keywords)
 		totalTime := time.Since(totalStart)
 
@@ -162,7 +161,7 @@ func SearchPhase(tableName, fileName string) {
 	resultPath := filepath.Join("result", "Search", "SDSSE-CQ", tableName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
-	resultHeader := []string{"keyword", "clientTimeList", "serverTime", "totalTime", "resultLength", "counter"}
+	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength", "counter"}
 
 	// 将结果数据整理成表格形式
 	resultData := make([][]string, len(resultList))

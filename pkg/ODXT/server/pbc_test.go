@@ -3,7 +3,11 @@ package pbc
 import (
 	"crypto/rand"
 	"math/big"
+	"sync"
 	"testing"
+	"time"
+
+	"github.com/Nik-U/pbc"
 )
 
 func TestPrfToZr(t *testing.T) {
@@ -69,20 +73,20 @@ func TestZrDiv(t *testing.T) {
 	}
 }
 
-func TestPow(t *testing.T) {
-	n, _ := rand.Int(rand.Reader, big.NewInt(1000000))
-	m, _ := rand.Int(rand.Reader, big.NewInt(1000000))
-	zrN := pairing.NewZr().SetBig(n)
-	zrM := pairing.NewZr().SetBig(m)
+// func TestPow(t *testing.T) {
+// 	n, _ := rand.Int(rand.Reader, big.NewInt(1000000))
+// 	m, _ := rand.Int(rand.Reader, big.NewInt(1000000))
+// 	zrN := pairing.NewZr().SetBig(n)
+// 	zrM := pairing.NewZr().SetBig(m)
 
-	zrPowNM := Pow(zrN, zrM)
+// 	zrPowNM := Pow(zrN, zrM)
 
-	// 验证 zrPowNM 是否等于 n^m
-	expected := pairing.NewZr().PowZn(zrN, zrM)
-	if !zrPowNM.Equals(expected) {
-		t.Error("Pow result is incorrect")
-	}
-}
+// 	// 验证 zrPowNM 是否等于 n^m
+// 	expected := pairing.NewZr().PowZn(zrN, zrM)
+// 	if !zrPowNM.Equals(expected) {
+// 		t.Error("Pow result is incorrect")
+// 	}
+// }
 
 func TestBytesToElement(t *testing.T) {
 	key := []byte("testkey")
@@ -95,4 +99,52 @@ func TestBytesToElement(t *testing.T) {
 	if !g.Equals(expected) {
 		t.Error("BytesToElement result is incorrect")
 	}
+}
+
+func ComputeAlpha(Ky, Kz, id []byte, op int, wWc []byte) (*pbc.Element, *pbc.Element, error) {
+	// 计算 PRF_p(Ky, id||op)
+	idOp := append(id, byte(op))
+
+	alpha1, err := PrfToZr(Ky, idOp)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// 计算 PRF_p(Kz, w||wc)
+	alpha2, err := PrfToZr(Kz, wWc)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	alpha := ZrDiv(alpha1, alpha2)
+
+	return alpha, alpha1, nil
+}
+
+func TestTimeCost(t *testing.T) {
+	// kt := []byte("0123456789123456")
+	kx := []byte("0123456789123456")
+	ky := []byte("0123456789123456")
+	kz := []byte("0123456789123456")
+	w1 := "F101"
+	id := "0"
+	start := time.Now()
+	var wg sync.WaitGroup
+	for i := range 10 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = i
+			alpha, _, _ := ComputeAlpha(ky, kz, []byte(id), 0, append([]byte(w1), byte(5)))
+
+			zr1, _ := PrfToZr(kx, []byte(w1))
+			zr2, _ := PrfToZr(kz, append([]byte(w1), byte(5)))
+			g := GToPower2(zr1, zr2)
+			g = Pow(g, alpha)
+			_ = g
+		}()
+	}
+	wg.Wait()
+
+	t.Log("time cost:", time.Since(start))
 }

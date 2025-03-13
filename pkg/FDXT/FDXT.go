@@ -3,12 +3,13 @@ package FDXT
 import (
 	"ConjunctiveSSE/pkg/Database"
 	"ConjunctiveSSE/pkg/utils"
-	"bufio"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -26,7 +27,7 @@ import (
 )
 
 type Counter struct {
-	srch, updt, max int
+	srch, updt, Max int
 }
 
 type TsetValue struct {
@@ -47,34 +48,12 @@ var (
 	err         error
 )
 
-func ReadKeys(fileName string) [5][]byte {
-	// 读取文件
-	file, err := os.Open(fileName)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-
-	// 读取密钥
-	var keys [5][]byte
-	scanner := bufio.NewScanner(file)
-
-	// 读取5个密钥
-	for i := 0; i < 5; i++ {
-		line := scanner.Text()
-		key, err := base64.StdEncoding.DecodeString(line)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		keys[i] = key
-	}
-
-	return keys
-}
-
 func (fdxt *FDXT) Setup(dbName string) error {
-	fdxt.Keys = ReadKeys("./cmd/FDXT/configs/keys.txt")
+	fdxt.Keys[0] = []byte("0123456789123456")
+	fdxt.Keys[1] = []byte("0123456789123456")
+	fdxt.Keys[2] = []byte("0123456789123456")
+	fdxt.Keys[3] = []byte("0123456789123456")
+	fdxt.Keys[4] = []byte("0123456789123456")
 	fdxt.Count = make(map[string]*Counter)
 	fdxt.CDBXtag = make(map[string]string)
 	fdxt.CDBTSet = make(map[string]*TsetValue)
@@ -130,7 +109,6 @@ func (fdxt *FDXT) UpdatePhase() error {
 				log.Fatal("val_set contains non-string value")
 			}
 		}
-		ids = utils.RemoveDuplicates(ids)
 		keyword := keywordId["k"].(string)
 
 		encryptTime, err := fdxt.Encrypt(keyword, ids, Add)
@@ -141,6 +119,11 @@ func (fdxt *FDXT) UpdatePhase() error {
 		cipherList = append(cipherList, len(ids))
 	}
 	// save to file
+	// 将fdxt.Count.max写入文件
+	if err := FDXTSaveFileCntToFile(fdxt.Count, "./cmd/FDXT/configs/filecnt.json"); err != nil {
+		log.Println("Error saving filecnt to file:", err)
+		return err
+	}
 	saveTime := time.Now()
 	resultpath := filepath.Join("result", "Update", "FDXT", fmt.Sprintf("%s.csv", saveTime.Format("2006-01-02_15-04-05")))
 	resultHeader := []string{"encryptTime", "cipherLength"}
@@ -160,17 +143,18 @@ func (fdxt *FDXT) UpdatePhase() error {
 func (fdxt *FDXT) Encrypt(keyword string, ids []string, op Operation) (time.Duration, error) {
 	kw, kt, kx, ky, kz := fdxt.Keys[0], fdxt.Keys[1], fdxt.Keys[2], fdxt.Keys[3], fdxt.Keys[4]
 	if _, ok := fdxt.Count[keyword]; !ok {
-		fdxt.Count[keyword] = &Counter{srch: 0, updt: 0, max: 0}
+		fdxt.Count[keyword] = &Counter{srch: 0, updt: 0, Max: 0}
 	}
 	clientTime := time.Duration(0)
 	for _, id := range ids {
+		id = id + "@" + strconv.Itoa(rand.Intn(1000000))
 		start := time.Now()
 		fdxt.Count[keyword].updt++
-		fdxt.Count[keyword].max++
-		msgLen := len(keyword) + len(big.NewInt(int64(fdxt.Count[keyword].max)).Bytes()) + 1
+		fdxt.Count[keyword].Max++
+		msgLen := len(keyword) + len(big.NewInt(int64(fdxt.Count[keyword].Max)).Bytes()) + 1
 		msg := make([]byte, 0, msgLen)
 		msg = append(msg, []byte(keyword)...)
-		msg = append(msg, big.NewInt(int64(fdxt.Count[keyword].max)).Bytes()...)
+		msg = append(msg, big.NewInt(int64(fdxt.Count[keyword].Max)).Bytes()...)
 
 		addr, err := utils.PrfF(kw, append(msg, byte(0)))
 		if err != nil {
@@ -207,7 +191,7 @@ func (fdxt *FDXT) Encrypt(keyword string, ids []string, op Operation) (time.Dura
 		}
 		xtag := pbcUtil.GToPower2(xtag1, xtag2)
 		c := utils.BytesXOR(xtag.Bytes(), t)
-		alpha, _, err := utils.ComputeAlpha(ky, kz, []byte(id), int(op), append([]byte(keyword), big.NewInt(int64(fdxt.Count[keyword].max)).Bytes()...))
+		alpha, _, err := utils.ComputeAlpha(ky, kz, []byte(id), int(op), append([]byte(keyword), big.NewInt(int64(fdxt.Count[keyword].Max)).Bytes()...))
 		if err != nil {
 			return 0, err
 		}
@@ -287,6 +271,7 @@ func (fdxt *FDXT) SearchPhase(tableName, fileName string) error {
 	}
 
 	// 将结果写入文件
+	log.Println("Write Time:", time.Now().Format("2006-01-02_15-04-05"))
 	err := utils.WriteResultToCSV(resultpath, resultHeader, resultData)
 	if err != nil {
 		log.Fatal(err)
@@ -301,4 +286,29 @@ func CalculateResListSize(resList []*RES) int {
 		size += 4
 	}
 	return size
+}
+
+func FDXTSaveFileCntToFile(fileCnt map[string]*Counter, filename string) error {
+	// 创建文件，如果所在目录不存在，则先创建目录，再创建文件
+	dir := filepath.Dir(filename)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		os.MkdirAll(dir, 0755)
+	}
+
+	// 创建文件
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// 仅将 fileCnt 中的 max 字段写入Json文件
+	maxValues := make(map[string]int)
+	for key, counter := range fileCnt {
+		maxValues[key] = counter.Max
+	}
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(maxValues)
 }

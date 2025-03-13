@@ -27,13 +27,13 @@ func (fdxt *FDXT) ClientSearchStep1(q []string) (string, []*TKL, []string, [][]*
 	kw, kt, kx, kz := fdxt.Keys[0], fdxt.Keys[1], fdxt.Keys[2], fdxt.Keys[4]
 	counter, w1 := math.MaxInt64, q[0]
 	for _, w := range q {
-		num := fdxt.Count[w].max
+		num := fdxt.Count[w].Max
 		if num < counter {
 			w1 = w
 			counter = num
 		}
 	}
-	tklList := make([]*TKL, 0, 1000)
+	tklList := make([]*TKL, 0, fdxt.Count[q[0]].updt+fdxt.Count[q[1]].updt)
 	for _, w := range q {
 		if _, ok := fdxt.Count[w]; !ok {
 			return "", nil, nil, nil, fmt.Errorf("keyword %s not found", w)
@@ -60,13 +60,13 @@ func (fdxt *FDXT) ClientSearchStep1(q []string) (string, []*TKL, []string, [][]*
 			tklList = append(tklList, &TKL{L: base64.StdEncoding.EncodeToString(l), T: base64.StdEncoding.EncodeToString(t)})
 		}
 	}
-	STKL := make([]string, fdxt.Count[w1].max)
-	xtkList := make([][]*pbc.Element, fdxt.Count[w1].max+1)
+	STKL := make([]string, fdxt.Count[w1].Max)
+	xtkList := make([][]*pbc.Element, fdxt.Count[w1].Max+1)
 	qt := utils.RemoveElement(q, w1)
 	var wg sync.WaitGroup
-	for j := 1; j <= fdxt.Count[w1].max; j++ {
+	for j := 1; j <= fdxt.Count[w1].Max; j++ {
 		wg.Add(1)
-		go func(j int)  {
+		go func(j int) {
 			defer wg.Done()
 			msg := make([]byte, 0, len(w1)+len(big.NewInt(int64(j)).Bytes())+1)
 			msg = append(msg, []byte(w1)...)
@@ -86,7 +86,7 @@ func (fdxt *FDXT) ClientSearchStep1(q []string) (string, []*TKL, []string, [][]*
 				}
 				xtk2, err := pbcUtil.PrfToZr(kz, msg)
 				if err != nil {
-					fmt.Println(err)	
+					fmt.Println(err)
 					return
 				}
 				xtk := pbcUtil.GToPower2(xtk1, xtk2)
@@ -132,10 +132,10 @@ func (fdxt *FDXT) ServerSearch(n int, tklList []*TKL, stklList []string, xtkList
 					cnt++
 				}
 			}
-			resList = append(resList, &RES{Val: val, Cnt: cnt})
+			resList[j] = &RES{Val: val, Cnt: cnt}
 		}(j)
-		wg.Wait()
 	}
+	wg.Wait()
 	return resList, nil
 }
 

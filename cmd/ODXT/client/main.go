@@ -5,7 +5,6 @@ import (
 	"ConjunctiveSSE/pkg/ODXT/client"
 	"ConjunctiveSSE/pkg/utils"
 	"context"
-	"flag"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -19,36 +18,20 @@ import (
 )
 
 func main() {
-	fn := flag.String("fn", "", "要执行的函数名 (Update 或 Search)")
-	flag.Parse()
 	c, err := client.NewODXTClient("10.12.188.9:50051")
 	if err != nil {
 		log.Fatalf("failed to create client: %v", err)
 	}
+	dbName := "Crime_USENIX_REV"
+	// Update Phase
+	updateTime := time.Now()
+	UpdatePhase(c, dbName)
+	log.Printf("Update phase to %v\n", time.Since(updateTime))
 
-	switch *fn {
-	case "Update":
-		dbName := "Crime_USENIX_REV"
-		updateTime := time.Now()
-		UpdatePhase(c, dbName)
-		log.Printf("Update phase to %v\n", time.Since(updateTime))
-	case "Search":
-		searchTime := time.Now()
-		dbName := "Crime_USENIX_REV"
-		SearchPhase(c, dbName)
-		log.Printf("Search phase to %v\n", time.Since(searchTime))
-
-	default:
-		dbName := "Crime_USENIX_REV"
-		updateTime := time.Now()
-		UpdatePhase(c, dbName)
-		log.Printf("Update phase to %v\n", time.Since(updateTime))
-
-		// Search Phase
-		searchTime := time.Now()
-		SearchPhase(c, dbName)
-		log.Printf("Search phase to %v\n", time.Since(searchTime))
-	}
+	// Search Phase
+	searchTime := time.Now()
+	SearchPhase(c, dbName)
+	log.Printf("Search phase to %v\n", time.Since(searchTime))
 }
 
 func UpdatePhase(c *client.ODXTClient, dbName string) {

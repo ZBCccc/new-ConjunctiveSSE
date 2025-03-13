@@ -2,13 +2,52 @@ package HDXT
 
 import (
 	"ConjunctiveSSE/pkg/utils"
+	"bytes"
+	"crypto/aes"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log"
 	"math/big"
 )
+
+func PrfF(key, message []byte) ([]byte, error) {
+    // 检查密钥长度是否为16字节(128位)
+    if len(key) != 16 {
+        return nil, errors.New("key must be 16 bytes for AES-128")
+    }
+
+    // 1. 首先使用AES-ECB-128
+    cipher, err := aes.NewCipher(key)
+    if err != nil {
+        return nil, err
+    }
+
+    // 确保消息长度是16字节的倍数
+    paddedMessage := pkcs7Padding(message, 16)
+    encrypted := make([]byte, len(paddedMessage))
+
+    // 实现ECB模式加密
+    for i := 0; i < len(paddedMessage); i += 16 {
+        cipher.Encrypt(encrypted[i:i+16], paddedMessage[i:i+16])
+    }
+
+    // 2. 然后进行SHA-256哈希
+    hash := sha256.Sum256(encrypted)
+    
+    return hash[:], nil
+}
+
+
+// PKCS7填充
+func pkcs7Padding(data []byte, blockSize int) []byte {
+    padding := blockSize - len(data)%blockSize
+    padText := bytes.Repeat([]byte{byte(padding)}, padding)
+    return append(data, padText...)
+}
+
 
 // mitraEncrypt generates encrypted address and value for the given keyword and id.
 // Parameters:
@@ -28,13 +67,13 @@ func mitraEncrypt(hdxt *HDXT, keyword string, id string, operation int) (string,
 	wWc := append([]byte(keyword+"#"), big.NewInt(int64(hdxt.FileCnt[keyword])).Bytes()...)
 
 	// address = PRF(kt, w||wc||0)
-	address, err := utils.PrfF(k, append(wWc, byte(0)))
+	address, err := PrfF(k, append(wWc, byte(0)))
 	if err != nil {
 		return "", "", err
 	}
 
 	// val = PRF(kt, w||wc||1) xor (id||op)
-	val, err := utils.PrfF(k, append(wWc, byte(1)))
+	val, err := PrfF(k, append(wWc, byte(1)))
 	if err != nil {
 		return "", "", err
 	}
@@ -50,19 +89,19 @@ func auhmeEncrypt(hdxt *HDXT, keyword string, id string, va int) (string, string
 	k1, k2, k3 := hdxt.Auhme.Keys[0], hdxt.Auhme.Keys[1], hdxt.Auhme.Keys[2]
 	wid := keyword + "#" + id
 	wId := []byte(wid)
-	label, err := utils.FAesni(k1, wId, 1)
+	label, err := PrfF(k1, wId)
 	if err != nil {
 		return "", "", err
 	}
 
 	v := append(label, byte(va))
-	enc1, err := utils.FAesni(k2, v, 1)
+	enc1, err := PrfF(k2, v)
 	if err != nil {
 		return "", "", err
 	}
 
 	v = append(label, byte(0))
-	enc2, err := utils.FAesni(k3, v, 1)
+	enc2, err := PrfF(k3, v)
 	if err != nil {
 		return "", "", err
 	}
@@ -99,15 +138,15 @@ func auhmeGenUpd(hdxt *HDXT, op Operation, ku string, vu int) (*UTok, error) {
 	tok := make(map[string]string)
 	if op == Add {
 		// l ← F (k1, ku )
-		l, err := utils.FAesni(k1, []byte(ku), 1)
+		l, err := PrfF(k1, []byte(ku))
 		if err != nil {
 			return nil, err
 		}
-		tok1, err := utils.FAesni(k2, append(l, byte(vu)), 1)
+		tok1, err := PrfF(k2, append(l, byte(vu)))
 		if err != nil {
 			return nil, err
 		}
-		tok2, err := utils.FAesni(k3, append(l, byte(cnt)), 1)
+		tok2, err := PrfF(k3, append(l, byte(cnt)))
 		if err != nil {
 			return nil, err
 		}
@@ -141,7 +180,7 @@ func auhmeGenUpd(hdxt *HDXT, op Operation, ku string, vu int) (*UTok, error) {
 // CInsert inserts a key-value pair into the map. If the key already exists, it deletes the existing key-value pair.
 func CInsert(hdxt *HDXT, k string, v int) error {
 	k1 := hdxt.Auhme.Keys[0]
-	l, err := utils.FAesni(k1, []byte(k), 1)
+	l, err := PrfF(k1, []byte(k))
 	if err != nil {
 		return err
 	}
@@ -160,30 +199,30 @@ func CEvict(hdxt *HDXT, s []string) (tok map[string]string, err error) {
 			return nil, err
 		}
 		if _, ok := t[l]; !ok {
-			u1, err := utils.FAesni(k3, append(lBytes, byte(cnt)), 1)
+			u1, err := PrfF(k3, append(lBytes, byte(cnt)))
 			if err != nil {
 				return nil, err
 			}
-			u2, err := utils.FAesni(k3, append(lBytes, byte(cnt+1)), 1)
+			u2, err := PrfF(k3, append(lBytes, byte(cnt+1)))
 			if err != nil {
 				return nil, err
 			}
 			tok[l] = base64.StdEncoding.EncodeToString(utils.BytesXOR(u1, u2))
 		}
 		b := t[l]
-		u1, err := utils.FAesni(k2, append(lBytes, byte(b)), 1)
+		u1, err := PrfF(k2, append(lBytes, byte(b)))
 		if err != nil {
 			return nil, err
 		}
-		u2, err := utils.FAesni(k2, append(lBytes, byte(1-b)), 1)
+		u2, err := PrfF(k2, append(lBytes, byte(1-b)))
 		if err != nil {
 			return nil, err
 		}
-		u3, err := utils.FAesni(k3, append(lBytes, byte(cnt)), 1)
+		u3, err := PrfF(k3, append(lBytes, byte(cnt)))
 		if err != nil {
 			return nil, err
 		}
-		u4, err := utils.FAesni(k3, append(lBytes, byte(cnt+1)), 1)
+		u4, err := PrfF(k3, append(lBytes, byte(cnt+1)))
 		if err != nil {
 			return nil, err
 		}
@@ -244,7 +283,7 @@ func auhmeGenKey(hdxt *HDXT, mp map[string]int) (*Dk, error) {
 	beta := 1
 	xors := make([]byte, 16)
 	for k, v := range mp {
-		l, err := utils.FAesni(k1, []byte(k), 1)
+		l, err := PrfF(k1, []byte(k))
 		if err != nil {
 			return nil, err
 		}
@@ -256,21 +295,21 @@ func auhmeGenKey(hdxt *HDXT, mp map[string]int) (*Dk, error) {
 		if cv == 1-v {
 			beta = 0
 		} else if cv == v {
-			v1, err := utils.FAesni(k2, append(l, byte(1-v)), 1)
+			v1, err := PrfF(k2, append(l, byte(1-v)))
 			if err != nil {
 				return nil, err
 			}
-			v2, err := utils.FAesni(k3, append(l, byte(cnt)), 1)
+			v2, err := PrfF(k3, append(l, byte(cnt)))
 			if err != nil {
 				return nil, err
 			}
 			xors = utils.BytesXOR(xors, utils.BytesXOR(v1, v2))
 		} else if cv == -1 {
-			v1, err := utils.FAesni(k2, append(l, byte(v)), 1)
+			v1, err := PrfF(k2, append(l, byte(v)))
 			if err != nil {
 				return nil, err
 			}
-			v2, err := utils.FAesni(k3, append(l, byte(cnt)), 1)
+			v2, err := PrfF(k3, append(l, byte(cnt)))
 			if err != nil {
 				return nil, err
 			}
@@ -319,7 +358,7 @@ func CalculateDkListSize(dkList []*Dk) int {
 
 func CFind(hdxt *HDXT, k string) (int, error) {
 	k1 := hdxt.Auhme.Keys[0]
-	l, err := utils.FAesni(k1, []byte(k), 1)
+	l, err := PrfF(k1, []byte(k))
 	if err != nil {
 		return -1, err
 	}
@@ -357,7 +396,7 @@ func MitraGenTrapdoor(hdxt *HDXT, keyword string) ([]string, error) {
 	tList := make([]string, 0, hdxt.FileCnt[keyword])
 	for i := 1; i <= hdxt.FileCnt[keyword]; i++ {
 		//Ti = PrfF(kt, w||i||0)
-		address, err := utils.PrfF(hdxt.Mitra.Key, append(append([]byte(keyword+"#"), big.NewInt(int64(i)).Bytes()...), byte(0)))
+		address, err := PrfF(hdxt.Mitra.Key, append(append([]byte(keyword+"#"), big.NewInt(int64(i)).Bytes()...), byte(0)))
 		if err != nil {
 			return nil, err
 		}
@@ -379,7 +418,7 @@ func mitraServerSearch(hdxt *HDXT, tList []string) []string {
 func MitraDecrypt(hdxt *HDXT, keyword string, encs []string) ([]string, error) {
 	dec := make([]string, 0, len(encs))
 	for i, e := range encs {
-		laber, err := utils.PrfF(hdxt.Mitra.Key, append(append([]byte(keyword+"#"), big.NewInt(int64(i+1)).Bytes()...), byte(1)))
+		laber, err := PrfF(hdxt.Mitra.Key, append(append([]byte(keyword+"#"), big.NewInt(int64(i+1)).Bytes()...), byte(1)))
 		if err != nil {
 			return nil, err
 		}

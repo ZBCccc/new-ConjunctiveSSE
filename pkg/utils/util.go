@@ -249,3 +249,5 @@ func SaveFileCntToFile(fileCnt map[string]int, filename string) error {
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(fileCnt)
 }
+
+

@@ -3,9 +3,10 @@ package ODXT
 import (
 	"ConjunctiveSSE/pkg/utils"
 	pbcUtil "ConjunctiveSSE/pkg/utils/pbc"
-	"encoding/base64"
 	"fmt"
 	"math/big"
+	"math/rand"
+	"strconv"
 	"sync"
 	"time"
 
@@ -18,6 +19,8 @@ func (odxt *ODXT) Encrypt(keyword string, ids []string, operation utils.Operatio
 		odxt.UpdateCnt[keyword] = 0
 	}
 	for _, id := range ids {
+		// 在id后添加一个随机数生成新的id,避免重复,例如：假如id为123，则新的id为123@123
+		id = id + "@" + strconv.Itoa(rand.Intn(1000000))
 		encryptedTimeAOperation, err := odxt.encrypt(keyword, id, operation)
 		if err != nil {
 			return encryptedTime, err
@@ -57,8 +60,8 @@ func (odxt *ODXT) encrypt(keyword string, id string, operation utils.Operation) 
 	encryptedTime += time.Since(start)
 
 	// Encoded the ciphertext
-	odxt.XSet[base64.StdEncoding.EncodeToString(Xtag.Bytes())] = 1
-	odxt.TSet[base64.StdEncoding.EncodeToString(address)] = &TsetValue{base64.StdEncoding.EncodeToString(val), alpha}
+	odxt.XSet[string(Xtag.Bytes())] = 1
+	odxt.TSet[string(address)] = &TsetValue{string(val), alpha}
 
 	return encryptedTime, nil
 }
@@ -84,7 +87,7 @@ func (odxt *ODXT) Search(q []string) (time.Duration, time.Duration, []utils.SEOp
 			for _, xtoken := range xtokenList[j] {
 				// 判断 xtag 是否匹配
 				xtag := pbcUtil.Pow(xtoken, alpha)
-				if _, ok := odxt.XSet[base64.StdEncoding.EncodeToString(xtag.Bytes())]; ok {
+				if _, ok := odxt.XSet[string(xtag.Bytes())]; ok {
 					cnt++
 				}
 			}
@@ -123,16 +126,11 @@ func (odxt *ODXT) ClientSearchStep1(q []string) ([]string, [][]*pbc.Element) {
 	}
 	qt := utils.RemoveElement(q, w1)
 	xtoken1List := make([]*pbc.Element, len(qt))
-	var wgz sync.WaitGroup
+	
 	for i, wi := range qt {
-		wgz.Add(1)
-		go func(i int, wi string) {
-			defer wgz.Done()
-			xtoken1, _ := pbcUtil.PrfToZr(kx, []byte(wi))
-			xtoken1List[i] = xtoken1
-		}(i, wi)
+		xtoken1, _ := pbcUtil.PrfToZr(kx, []byte(wi))
+		xtoken1List[i] = xtoken1
 	}
-	wgz.Wait()
 	var wg sync.WaitGroup
 	for j := 0; j < counter; j++ {
 		wg.Add(1)
@@ -141,9 +139,8 @@ func (odxt *ODXT) ClientSearchStep1(q []string) ([]string, [][]*pbc.Element) {
 			saddr, err := utils.PrfF(kt, append(append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), byte(0)))
 			if err != nil {
 				fmt.Println(err)
-				return
 			}
-			stokenList[j] = base64.StdEncoding.EncodeToString(saddr)
+			stokenList[j] = string(saddr)
 			xtoken2, _ := pbcUtil.PrfToZr(kz, append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...))
 			var wgg sync.WaitGroup
 			for i := range qt {
@@ -186,19 +183,15 @@ func (odxt *ODXT) Decrypt(q []string, sEOpList []utils.SEOp) ([]string, error) {
 			return nil, err
 		}
 		id := make([]byte, 31)
-		val, err := base64.StdEncoding.DecodeString(sval)
-		if err != nil {
-			fmt.Println(err)
-			return nil, err
-		}
-		for i := 0; i < 31; i++ {
+		val := []byte(sval)
+		for i := range 31 {
 			id[i] = tmp[i] ^ val[i]
 		}
 		var op = utils.Operation(tmp[31] ^ val[31])
 		if op == utils.Add && cnt == len(q) {
-			sIdList = append(sIdList, base64.StdEncoding.EncodeToString(id))
+			sIdList = append(sIdList, string(id))
 		} else if op == utils.Del && cnt > 0 {
-			sIdList = utils.RemoveElement(sIdList, base64.StdEncoding.EncodeToString(id))
+			sIdList = utils.RemoveElement(sIdList, string(id))
 		}
 	}
 

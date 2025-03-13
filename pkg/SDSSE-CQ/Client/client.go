@@ -7,15 +7,13 @@ import (
 	"log"
 	"math"
 	"math/big"
+
+	pbcUtil "ConjunctiveSSE/pkg/utils/pbc"
 	"time"
 
+	"github.com/Nik-U/pbc"
 	sseclient "github.com/ZBCccc/Aura/Core/SSEClient"
 	util "github.com/ZBCccc/Aura/Util"
-)
-
-var (
-	// PlaintextDB *mongo.Database
-	p, g *big.Int
 )
 
 // Client is the client of SDSSE-CQ.
@@ -25,19 +23,6 @@ type Client struct {
 	CT            map[string]int
 	k, kx, ki, kz []byte
 	iv            []byte
-}
-
-func init() {
-	// Initialize g and p
-	g = big.NewInt(65537)
-	p, _ = new(big.Int).SetString("69445180235231407255137142482031499329548634082242122837872648805446522657159", 10)
-
-	// Connect to MongoDB
-	// var err error
-	// PlaintextDB, err = Database.MongoDBSetup("SDSSE-CQ")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
 }
 
 // NewClient creates a new Client.
@@ -75,14 +60,11 @@ func (c *Client) Update(op util.Operation, keyword string, id string) {
 		log.Fatal("Failed to AesEncrypt", err)
 	}
 
-	xind, _ := utils.PrfFp(c.ki, []byte(id), p, g)
-	z, _ := utils.PrfFp(c.kz, append([]byte(keyword), big.NewInt(int64(c.CT[keyword])).Bytes()...), p, g)
-	pMinus1 := new(big.Int).Sub(p, big.NewInt(1))
-	zInv := new(big.Int).ModInverse(z, pMinus1)
-	y := new(big.Int).Mul(xind, zInv)
-	xTagHead, _ := utils.PrfFp(c.kx, []byte(keyword), p, g)
-	xTagHead = new(big.Int).Mul(xTagHead, xind)
-	xTag := new(big.Int).Exp(g, xTagHead, p)
+	xind, _ := pbcUtil.PrfToZr(c.ki, []byte(id))
+	z, _ := pbcUtil.PrfToZr(c.kz, append([]byte(keyword), big.NewInt(int64(c.CT[keyword])).Bytes()...))
+	y := pbcUtil.ZrDiv(xind, z)
+	xTagHead, _ := pbcUtil.PrfToZr(c.kx, []byte(keyword))
+	xTag := pbcUtil.GToPower2(xTagHead, xind)
 
 	// Serialize data
 	serializedData := serializeData(e, y, c.CT[keyword])
@@ -110,17 +92,17 @@ func (c *Client) Search(keywords []string) ([]string, time.Duration, time.Durati
 	}
 
 	// Initialize xtokenList
-	xtokenList := make([][]*big.Int, minCount+1)
+	xtokenList := make([][]*pbc.Element, minCount+1)
 	for i := range xtokenList {
-		xtokenList[i] = make([]*big.Int, len(keywords)-1)
+		xtokenList[i] = make([]*pbc.Element, len(keywords)-1)
 	}
 
 	qt := utils.RemoveElement(keywords, w1)
 	for i := 0; i <= minCount; i++ {
 		for j, wj := range qt {
-			xtoken1, _ := utils.PrfFp(c.kx, []byte(wj), p, g)
-			xtoken2, _ := utils.PrfFp(c.kz, append([]byte(w1), big.NewInt(int64(i)).Bytes()...), p, g)
-			xtoken := new(big.Int).Exp(g, new(big.Int).Mul(xtoken1, xtoken2), p)
+			xtoken1, _ := pbcUtil.PrfToZr(c.kx, []byte(wj))
+			xtoken2, _ := pbcUtil.PrfToZr(c.kz, append([]byte(w1), big.NewInt(int64(i)).Bytes()...))
+			xtoken := pbcUtil.GToPower2(xtoken1, xtoken2)
 			xtokenList[i][j] = xtoken
 		}
 	}
@@ -153,7 +135,7 @@ func (c *Client) Search(keywords []string) ([]string, time.Duration, time.Durati
 		e, y, c := deserializeData(decoded)
 		flag := true
 		for _, xtoken := range xtokenList[c] {
-			if _, exists := XSet[base64.StdEncoding.EncodeToString(new(big.Int).Exp(xtoken, y, p).Bytes())]; !exists {
+			if _, exists := XSet[base64.StdEncoding.EncodeToString(pbcUtil.Pow(xtoken, y).Bytes())]; !exists {
 				flag = false
 				break
 			}
@@ -181,7 +163,7 @@ func (c *Client) Search(keywords []string) ([]string, time.Duration, time.Durati
 }
 
 // 新增辅助函数
-func serializeData(e []byte, y *big.Int, counter int) []byte {
+func serializeData(e []byte, y *pbc.Element, counter int) []byte {
 	// 为长度信息预留空间
 	eLen := len(e)
 	yBytes := y.Bytes()
@@ -201,12 +183,12 @@ func serializeData(e []byte, y *big.Int, counter int) []byte {
 	return result
 }
 
-func deserializeData(data []byte) (e []byte, y *big.Int, counter int) {
+func deserializeData(data []byte) (e []byte, y *pbc.Element, counter int) {
 	eLen := binary.BigEndian.Uint64(data[0:8])
 	yLen := binary.BigEndian.Uint64(data[8:16])
 
 	e = data[16 : 16+eLen]
-	y = new(big.Int).SetBytes(data[16+eLen : 16+eLen+yLen])
+	y = pbcUtil.BytesToZr(data[16+eLen : 16+eLen+yLen])
 	counter = int(binary.BigEndian.Uint64(data[16+eLen+yLen:]))
 
 	return

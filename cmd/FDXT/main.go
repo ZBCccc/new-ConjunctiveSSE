@@ -4,6 +4,7 @@ import (
 	"ConjunctiveSSE/pkg/FDXT"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -72,7 +73,16 @@ func TestFDXT(cfg Config) error {
 			return err
 		}
 		t2 := time.Since(t1)
-		fmt.Println("SearchPhase time:", t2)
+		log.Println("SearchPhase time:", t2)
+		time.Sleep(10 * time.Second)
+		t1 = time.Now()
+		err = fdxt.SearchPhase(cfg.Db, cfg.Group)
+		if err != nil {
+		log	.Println("err:", err)
+			return err
+		}
+		t2 = time.Since(t1)
+		log.Println("SearchPhase time:", t2)
 	}
 	return nil
 }

@@ -3,13 +3,11 @@ package ODXT
 import (
 	"ConjunctiveSSE/pkg/Database"
 	"ConjunctiveSSE/pkg/utils"
-	"bufio"
 	"context"
 	"crypto/rand"
 	"fmt"
 	"log"
 	"math"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -32,46 +30,12 @@ var (
 	PlaintextDB *mongo.Database
 )
 
-const (
-	keysPath = "./cmd/ODXT/configs/keys.txt"
-)
 
 type ODXT struct {
 	Keys      [4][]byte
 	UpdateCnt map[string]int
 	TSet      map[string]*TsetValue
 	XSet      map[string]int
-}
-
-func ReadKeys(fileName string) [4][]byte {
-	// 读取文件
-	file, err := os.Open(fileName)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-
-	// 读取密钥
-	var keys [4][]byte
-	scanner := bufio.NewScanner(file)
-
-	// 读取4个密钥
-	for i := 0; i < 4; i++ {
-		if !scanner.Scan() {
-			log.Fatal("文件行数不足")
-		}
-		line := scanner.Text()
-		// PKCS7 填充
-		padding := 16 - (len(line) % 16)
-		padtext := make([]byte, len(line)+padding)
-		copy(padtext, line)
-		for i := len(line); i < len(padtext); i++ {
-			padtext[i] = byte(padding)
-		}
-		keys[i] = padtext
-	}
-
-	return keys
 }
 
 func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
@@ -157,7 +121,7 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) error {
 				continue
 			}
 		}
-		ids = utils.RemoveDuplicates(ids)
+		// ids = utils.RemoveDuplicates(ids)
 		keyword := keywordId["k"].(string)
 
 		encryptTime, err := odxt.Encrypt(keyword, ids, utils.Add)
@@ -171,6 +135,11 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) error {
 		volumeList = append(volumeList, len(ids))
 	}
 	saveTime := time.Now()
+	// save filecnt
+	if err := utils.SaveFileCntToFile(odxt.UpdateCnt, "./cmd/ODXT/configs/filecnt.json"); err != nil {
+		log.Println("Error saving filecnt to file:", err)
+		return err
+	}
 
 	// 设置结果文件的路径和名称
 	resultpath := filepath.Join("result", "Update", "ODXT", dbName, fmt.Sprintf("%s.csv", saveTime.Format("2006-01-02_15-04-05")))
@@ -209,7 +178,7 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	clientTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	serverTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
-	counterList := make([]int, 0, len(keywordsList)+1)
+	w1CounterList := make([]int, 0, len(keywordsList)+1)
 	totalTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	payloadSizeList := make([]int, 0, len(keywordsList)+1)
 
@@ -225,7 +194,7 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 				counter = num
 			}
 		}
-		counterList = append(counterList, counter)
+		w1CounterList = append(w1CounterList, counter)
 		trapdoorTime, serverTime, sEOpList := odxt.Search(keywords)
 
 		// 解密密文获得最终结果
@@ -252,12 +221,12 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	resultpath := filepath.Join("result", "Search", "ODXT", tableName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
-	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength", "payloadSize", "counter"}
+	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength", "payloadSize", "w1"}
 
 	// 将结果数据整理成表格形式
 	resultData := make([][]string, len(resultList))
 	for i, keywords := range keywordsList {
-		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientTimeList[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(payloadSizeList[i]), strconv.Itoa(counterList[i])}
+		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientTimeList[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(payloadSizeList[i]), strconv.Itoa(w1CounterList[i])}
 	}
 
 	// 将结果写入文件
