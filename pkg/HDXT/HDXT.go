@@ -10,7 +10,6 @@ import (
 	"log"
 	"math"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -115,73 +114,108 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 	hdxt.MitraCipherList = make(map[string]string)
 	hdxt.AuhmeCipherList = make(map[string]string)
 
-	setupTimeList = make([]time.Duration, 0, 1000000)
-	idList = make([]string, 0, 1000000)
-	volumeList = make([]int, 0, 1000000)
-
 	return nil
 }
 
-// 替代一次性加载全部数据
-func loadDataInBatches(collection *mongo.Collection, sizeIdKeywords int64, hdxt *HDXT) {
-    batchSize := 1000
-    var skip int64 = 0
-    
-    for {
-        // 查询一批数据
-        opts := options.Find().SetLimit(int64(batchSize)).SetSkip(skip)
-        cursor, err := collection.Find(context.Background(), bson.M{}, opts)
-        if err != nil {
-            log.Fatal(err)
-        }
-        
-        // 处理这批数据
-        var idKeywords []bson.M
-		if err = cursor.All(context.Background(), &idKeywords); err != nil {
-			log.Fatal("Error getting keywordIds:", err)
-		}
-        
-        // 如果没有更多数据，退出循环
-        if len(idKeywords) == 0 {
-			saveData(idList, volumeList, setupTimeList)
 
-            break
-        }
-        
-        // 分情况处理数据，当小于 1/2 时，进行setup，否则进行update
-        if skip < sizeIdKeywords/2 {
-            setupBatch(idKeywords, hdxt)
-        } else {
-            updateBatch(idKeywords, hdxt)
-        }
-        
-        // 更新skip以获取下一批
-        skip += int64(batchSize)
-        
-        // 可选：手动触发GC
-        runtime.GC()
-    }
-}
+func (hdxt *HDXT) SetupPhase() error {
+	// 获取MongoDB数据库
+	plaintextDB := hdxt.PlaintextDB
+	defer plaintextDB.Client().Disconnect(context.Background())
 
-func updateBatch(idKeywords []bson.M, hdxt *HDXT) {
-	for _, idKeyword := range idKeywords {
-		valSet, ok := idKeyword["keywords"].(primitive.A)
+	// 初始化
+	setupTimeList := make([]time.Duration, 0, 1000000)
+
+	// 从MongoDB数据库中获取名为"id_keywords"的集合
+	collection := plaintextDB.Collection("id_keywords")
+
+	// 创建一个游标，设置不超时并每次获取3000条记录
+	ctx := context.TODO()
+	opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(3000)
+	cur, err := collection.Find(ctx, bson.D{}, opts)
+	if err != nil {
+		log.Fatal("Error getting collection:", err)
+	}
+
+	// 关闭游标
+	defer cur.Close(ctx)
+
+	// 读取游标中的所有记录
+	var idKeywords []bson.M
+	if err = cur.All(ctx, &idKeywords); err != nil {
+		log.Fatal("Error getting keywordIds:", err)
+	}
+
+	// Setup Phase
+	idKeywordsSetup := idKeywords[:len(idKeywords)/2]
+	idList := make([]string, 0, len(idKeywords)/2)
+	volumeList := make([]int, 0, len(idKeywords)/2)
+	for _, idKeyword := range idKeywordsSetup {
+		valSet, ok := idKeyword["ks"].(primitive.A)
 		if !ok {
-			log.Fatal("val_set is not of type primitive.A")
+			log.Println("val_set is not of type primitive.A")
+			return err
 		}
 		var keywords []string
 		for _, v := range valSet {
 			if str, ok := v.(string); ok {
 				keywords = append(keywords, str)
 			} else {
-				log.Fatal("val_set contains non-string value")
+				log.Println("val_set contains non-string value")
+				return err
 			}
 		}
-		
+		keywords = utils.RemoveDuplicates(keywords) // 对keywords去重
+		id := idKeyword["id"].(string)
+		encryptTime, err := hdxt.Setup(id, keywords, Add)
+		if err != nil {
+			log.Println("Error in Setup:", err)
+			return err
+		}
+
+		setupTimeList = append(setupTimeList, encryptTime)
+		idList = append(idList, id)
+		volumeList = append(volumeList, len(keywords))
+	}
+	// save to file
+	saveTime := time.Now()
+	resultpath := filepath.Join("result", "Setup", "HDXT", fmt.Sprintf("%s.csv", saveTime.Format("2006-01-02_15-04-05")))
+	resultHeader := []string{"id", "volume", "addTime"}
+	resultData := make([][]string, len(idList))
+	for i, id := range idList {
+		resultData[i] = []string{id, strconv.Itoa(volumeList[i]), strconv.Itoa(int(setupTimeList[i].Microseconds()))}
+	}
+	err = utils.WriteResultToCSV(resultpath, resultHeader, resultData)
+	if err != nil {
+		log.Println("Error writing result to file:", err)
+		return err
+	}
+
+	// Update Phase
+	idList = make([]string, 0, len(idKeywords)/2)
+	idKeywordsUpdate := idKeywords[len(idKeywords)/2:]
+	volumeList = make([]int, 0, len(idKeywords)/2)
+	for _, idKeyword := range idKeywordsUpdate {
+		valSet, ok := idKeyword["ks"].(primitive.A)
+		if !ok {
+			log.Println("val_set is not of type primitive.A")
+			return err
+		}
+		var keywords []string
+		for _, v := range valSet {
+			if str, ok := v.(string); ok {
+				keywords = append(keywords, str)
+			} else {
+				log.Println("val_set contains non-string value")
+				return err
+			}
+		}
+		keywords = utils.RemoveDuplicates(keywords) // 对keyword去重
 		id := idKeyword["id"].(string)
 		encryptTime, tokList, err := hdxt.Encrypt(id, keywords, Add)
 		if err != nil {
-			log.Fatal("Error in Encrypt:", err)
+			log.Println("Error in Encrypt:", err)
+			return err
 		}
 
 		// server update
@@ -194,65 +228,32 @@ func updateBatch(idKeywords []bson.M, hdxt *HDXT) {
 		idList = append(idList, id)
 		volumeList = append(volumeList, len(keywords))
 	}
-}
+	saveTime = time.Now()
 
-func saveData(idList []string, volumeList []int, setupTimeList []time.Duration) {
+	// save filecnt
+	if err := utils.SaveFileCntToFile(hdxt.FileCnt, "./cmd/HDXT/configs/filecnt.json"); err != nil {
+		log.Println("Error saving filecnt to file:", err)
+		return err
+	}
+
 	// save to file
-	saveTime := time.Now()
-	resultpath := filepath.Join("result", "Setup", "HDXT", fmt.Sprintf("%s.csv", saveTime.Format("2006-01-02_15-04-05")))
-	resultHeader := []string{"id", "volume", "addTime"}
-	resultData := make([][]string, len(idList))
+	resultpath = filepath.Join("result", "Update", "HDXT", fmt.Sprintf("%s.csv", saveTime.Format("2006-01-02_15-04-05")))
+
+	// 定义结果表头
+	resultHeader = []string{"id", "volume", "addTime"}
+
+	// 将结果数据整理成表格形式
+	resultData = make([][]string, len(idList))
 	for i, id := range idList {
 		resultData[i] = []string{id, strconv.Itoa(volumeList[i]), strconv.Itoa(int(setupTimeList[i].Microseconds()))}
 	}
-	err := utils.WriteResultToCSV(resultpath, resultHeader, resultData)
+
+	// 将结果写入文件
+	err = utils.WriteResultToCSV(resultpath, resultHeader, resultData)
 	if err != nil {
-		log.Fatal("Error writing result to file:", err)
+		log.Println("Error writing result to file:", err)
+		return err
 	}
-}
-
-var (
-	setupTimeList []time.Duration
-	idList        []string
-	volumeList    []int
-)
-
-func setupBatch(batch []bson.M, hdxt *HDXT) {
-	for _, idKeyword := range batch {
-		valSet, ok := idKeyword["keywords"].(primitive.A)
-		if !ok {
-			log.Fatal("val_set is not of type primitive.A")
-		}
-		var keywords []string
-		for _, v := range valSet {
-			if str, ok := v.(string); ok {
-				keywords = append(keywords, str)
-			} else {
-				log.Fatal("关键词列表中包含非字符串类型的值")
-			}
-		}
-		id := idKeyword["id"].(string)
-		encryptTime, err := hdxt.Setup(id, keywords, Add)
-		if err != nil {
-			log.Fatal("Error in Setup:", err)
-		}
-
-		setupTimeList = append(setupTimeList, encryptTime)
-		idList = append(idList, id)
-		volumeList = append(volumeList, len(keywords))
-	}
-}
-
-func (hdxt *HDXT) SetupPhase() error {
-	// 获取MongoDB数据库
-	plaintextDB := hdxt.PlaintextDB
-	defer plaintextDB.Client().Disconnect(context.Background())
-	
-	// 从MongoDB数据库中获取名为"id_keywords"的集合
-	collection := plaintextDB.Collection("id_keywords")
-	sizeIdKeywords, _ := collection.CountDocuments(context.Background(), bson.M{})
-
-	loadDataInBatches(collection, sizeIdKeywords, hdxt)
 
 	return nil
 }

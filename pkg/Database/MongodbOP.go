@@ -110,8 +110,8 @@ func GetUniqueKeywords(PlaintextDB *mongo.Database) ([]string, error) {
 
 	// 使用聚合管道提取并去重val_set
 	pipeline := mongo.Pipeline{
-		{{Key: "$unwind", Value: "$keywords"}},                             // 展开val_set数组
-		{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$keywords"}}}}, // 按val_set的值进行分组，实现去重
+		{{Key: "$unwind", Value: "$ks"}},                             // 展开val_set数组
+		{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$ks"}}}}, // 按val_set的值进行分组，实现去重
 	}
 	// 执行聚合查询
 	cursor, err := collection.Aggregate(ctx, pipeline)
