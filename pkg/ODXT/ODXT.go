@@ -179,6 +179,7 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	serverTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
 	w1CounterList := make([]int, 0, len(keywordsList)+1)
+	w2CounterList := make([]int, 0, len(keywordsList)+1)
 	totalTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	payloadSizeList := make([]int, 0, len(keywordsList)+1)
 
@@ -195,6 +196,7 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 			}
 		}
 		w1CounterList = append(w1CounterList, counter)
+		w2CounterList = append(w2CounterList, odxt.UpdateCnt[keywords[1]])
 		trapdoorTime, serverTime, sEOpList := odxt.Search(keywords)
 
 		// 解密密文获得最终结果
@@ -221,12 +223,12 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	resultpath := filepath.Join("result", "Search", "ODXT", tableName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
-	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength", "payloadSize", "w1"}
+	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength", "payloadSize", "w1", "w2"}
 
 	// 将结果数据整理成表格形式
 	resultData := make([][]string, len(resultList))
 	for i, keywords := range keywordsList {
-		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientTimeList[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(payloadSizeList[i]), strconv.Itoa(w1CounterList[i])}
+		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientTimeList[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(payloadSizeList[i]), strconv.Itoa(w1CounterList[i]), strconv.Itoa(w2CounterList[i])}
 	}
 
 	// 将结果写入文件

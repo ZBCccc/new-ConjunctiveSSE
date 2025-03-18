@@ -5,14 +5,15 @@ import (
 	"ConjunctiveSSE/pkg/utils"
 	"context"
 	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"log"
 	"math"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -117,6 +118,17 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 	return nil
 }
 
+func getMemoryThreshold() uint64 {
+    // 获取系统信息
+    var info syscall.Sysinfo_t
+    if err := syscall.Sysinfo(&info); err != nil {
+        // 如果获取失败，使用默认值
+        return 4 * 1024 * 1024 * 1024 // 默认4GB
+    }
+    
+    // 设置为系统总内存的70%
+    return uint64(float64(info.Totalram) * 0.7)
+}
 
 func (hdxt *HDXT) SetupPhase() error {
 	// 获取MongoDB数据库
@@ -131,7 +143,7 @@ func (hdxt *HDXT) SetupPhase() error {
 
 	// 创建一个游标，设置不超时并每次获取3000条记录
 	ctx := context.TODO()
-	opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(3000)
+	opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(1000)
 	cur, err := collection.Find(ctx, bson.D{}, opts)
 	if err != nil {
 		log.Fatal("Error getting collection:", err)
@@ -147,11 +159,11 @@ func (hdxt *HDXT) SetupPhase() error {
 	}
 
 	// Setup Phase
-	idKeywordsSetup := idKeywords[:len(idKeywords)/2]
-	idList := make([]string, 0, len(idKeywords)/2)
-	volumeList := make([]int, 0, len(idKeywords)/2)
+	idKeywordsSetup := idKeywords[:100]
+	idList := make([]string, 0, len(idKeywordsSetup))
+	volumeList := make([]int, 0, len(idKeywordsSetup))
 	for _, idKeyword := range idKeywordsSetup {
-		valSet, ok := idKeyword["ks"].(primitive.A)
+		valSet, ok := idKeyword["val_st"].(primitive.A)
 		if !ok {
 			log.Println("val_set is not of type primitive.A")
 			return err
@@ -165,7 +177,6 @@ func (hdxt *HDXT) SetupPhase() error {
 				return err
 			}
 		}
-		keywords = utils.RemoveDuplicates(keywords) // 对keywords去重
 		id := idKeyword["id"].(string)
 		encryptTime, err := hdxt.Setup(id, keywords, Add)
 		if err != nil {
@@ -192,11 +203,24 @@ func (hdxt *HDXT) SetupPhase() error {
 	}
 
 	// Update Phase
-	idList = make([]string, 0, len(idKeywords)/2)
-	idKeywordsUpdate := idKeywords[len(idKeywords)/2:]
-	volumeList = make([]int, 0, len(idKeywords)/2)
+	log.Println("Start Update Phase")
+	runtime.GC()
+	idList = make([]string, 0, len(idKeywords))
+	idKeywordsUpdate := idKeywords[100:]
+	volumeList = make([]int, 0, len(idKeywords))
+	var m runtime.MemStats
+	count := 0
 	for _, idKeyword := range idKeywordsUpdate {
-		valSet, ok := idKeyword["ks"].(primitive.A)
+		// log.Println("Processing id:", idKeyword["id"])
+		count++
+		// log.Println("Count:", count)
+		runtime.ReadMemStats(&m)
+		if m.Alloc > getMemoryThreshold() {
+			log.Println("Memory threshold reached, performing GC")
+			runtime.GC()
+			log.Println("Count:", count)
+		}
+		valSet, ok := idKeyword["val_st"].(primitive.A)
 		if !ok {
 			log.Println("val_set is not of type primitive.A")
 			return err
@@ -210,7 +234,6 @@ func (hdxt *HDXT) SetupPhase() error {
 				return err
 			}
 		}
-		keywords = utils.RemoveDuplicates(keywords) // 对keyword去重
 		id := idKeyword["id"].(string)
 		encryptTime, tokList, err := hdxt.Encrypt(id, keywords, Add)
 		if err != nil {
@@ -301,7 +324,7 @@ func (hdxt *HDXT) Setup(id string, keywords []string, operation Operation) (time
 }
 
 func (hdxt *HDXT) Encrypt(id string, keywords []string, operation Operation) (time.Duration, []*UTok, error) {
-	tokList := make([]*UTok, 0)
+	tokList := make([]*UTok, 0, len(universeKeywords))
 	UT := make(map[string]string)
 	var (
 		utok *UTok
@@ -364,15 +387,24 @@ func (hdxt *HDXT) Encrypt(id string, keywords []string, operation Operation) (ti
 func (hdxt *HDXT) EditPair(id, keyword string, operation Operation) (*UTok, error) {
 	t, delta, s := hdxt.Auhme.Deltas.t, hdxt.Auhme.Deltas.delta, hdxt.Auhme.Deltas.s
 	if len(t)+1 >= delta {
+		// 分批处理，每次处理一部分关键词和ID
+		batchSize := 1000 // 根据实际情况调整
 		s = make([]string, 0)
-		for _, keyword := range universeKeywords {
-			for _, id := range universeIDs {
-				enc, err := PrfF(hdxt.Auhme.Keys[0], []byte(keyword+id))
-				if err != nil {
-					log.Println("Error in EditPair:", err)
-					return nil, err
+		
+		for i := 0; i < len(universeKeywords); i += batchSize {
+			endI := i + batchSize
+			if endI > len(universeKeywords) {
+				endI = len(universeKeywords)
+			}
+			
+			for j := 0; j < len(universeIDs); j += batchSize {
+				endJ := j + batchSize
+				if endJ > len(universeIDs) {
+					endJ = len(universeIDs)
 				}
-				s = append(s, base64.StdEncoding.EncodeToString(enc))
+				
+				batchS := processBatch(hdxt, universeKeywords[i:endI], universeIDs[j:endJ])
+				s = append(s, batchS...)
 			}
 		}
 	}
@@ -394,6 +426,21 @@ func (hdxt *HDXT) EditPair(id, keyword string, operation Operation) (*UTok, erro
 	}
 }
 
+// 辅助函数处理批量数据
+func processBatch(hdxt *HDXT, keywords []string, ids []string) []string {
+	result := make([]string, 0, len(keywords)*len(ids))
+	for _, keyword := range keywords {
+		for _, id := range ids {
+			enc, err := PrfF(hdxt.Auhme.Keys[0], []byte(keyword+id))
+			if err != nil {
+				continue
+			}
+			result = append(result, string(enc))
+		}
+	}
+	return result
+}
+
 func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 	fileName = "./cmd/HDXT/configs/" + fileName
 	keywordsList := utils.QueryKeywordsFromFile(fileName)
@@ -405,9 +452,10 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
 	totalTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	volumeList := make([]int, 0, len(keywordsList)+1)
+	w1List := make([]int, 0, len(keywordsList)+1)
+	w2List := make([]int, 0, len(keywordsList)+1)
 
 	// 循环搜索
-	// keywordsList = keywordsList[:1]
 	for _, keywords := range keywordsList {
 		clientTimeTotal := time.Duration(0)
 		serverTimeTotal := time.Duration(0)
@@ -423,7 +471,8 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 				counter = num
 			}
 		}
-		// fmt.Println("w1 size: ", hdxt.FileCnt[w1])
+		w1List = append(w1List, hdxt.FileCnt[w1])
+		w2List = append(w2List, hdxt.FileCnt[keywords[1]])
 		trapdoorTime, serverTime, w1Ids, err := hdxt.SearchOneKeyword(w1)
 		if err != nil {
 			log.Fatal(err)
@@ -468,12 +517,12 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 	resultpath := filepath.Join("result", "Search", "HDXT", tableName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
-	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength", "payloadSize"}
+	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength", "payloadSize", "w1", "w2"}
 
 	// 将结果数据整理成表格形式
 	resultData := make([][]string, len(resultList))
 	for i, keywords := range keywordsList {
-		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientSearchTime[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(volumeList[i])}
+		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientSearchTime[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(volumeList[i]), strconv.Itoa(w1List[i]), strconv.Itoa(w2List[i])}
 	}
 
 	// 将结果写入文件

@@ -215,11 +215,15 @@ func (fdxt *FDXT) SearchPhase(tableName, fileName string) error {
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
 	totalTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	payloadSizeList := make([]int, 0, len(keywordsList)+1)
+	w1CounterList := make([]int, 0, len(keywordsList)+1)
+	w2CounterList := make([]int, 0, len(keywordsList)+1)
 
 	for _, keywords := range keywordsList {
 		clientTimeTotal := time.Duration(0)
 		serverTimeTotal := time.Duration(0)
 		totalStart := time.Now()
+		w1CounterList = append(w1CounterList, fdxt.Count[keywords[0]].Max)
+		w2CounterList = append(w2CounterList, fdxt.Count[keywords[1]].Max)
 
 		// client search step 1
 		start := time.Now()
@@ -262,12 +266,12 @@ func (fdxt *FDXT) SearchPhase(tableName, fileName string) error {
 	resultpath := filepath.Join("result", "Search", "FDXT", tableName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
-	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength", "payloadSize"}
+	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength", "payloadSize", "w1", "w2"}
 
 	// 将结果数据整理成表格形式
 	resultData := make([][]string, len(resultList))
 	for i, keywords := range keywordsList {
-		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientSearchTime[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(payloadSizeList[i])}
+		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientSearchTime[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(payloadSizeList[i]), strconv.Itoa(w1CounterList[i]), strconv.Itoa(w2CounterList[i])}
 	}
 
 	// 将结果写入文件

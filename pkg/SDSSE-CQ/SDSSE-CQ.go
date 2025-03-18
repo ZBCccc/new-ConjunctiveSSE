@@ -71,7 +71,7 @@ func CiphertextGenPhase(dbName string) error {
 
 	// 读取所有记录
 	for _, keywordId := range keywordIds {
-		valSet, ok := keywordId["ids"].(primitive.A)
+		valSet, ok := keywordId["val_set"].(primitive.A)
 		if !ok {
 			log.Println("val_set is not of type primitive.A")
 			continue
@@ -129,8 +129,9 @@ func SearchPhase(tableName, fileName string) {
 	clientTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	serverTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
-	counterList := make([]int, 0, len(keywordsList)+1)
 	totalTimeList := make([]time.Duration, 0, len(keywordsList)+1)
+	w1CounterList := make([]int, 0, len(keywordsList)+1)
+	w2CounterList := make([]int, 0, len(keywordsList)+1)
 	// payloadSizeList := make([]int, 0, len(keywordsList)+1)
 
 	// 循环搜索
@@ -145,7 +146,8 @@ func SearchPhase(tableName, fileName string) {
 				counter = num
 			}
 		}
-		counterList = append(counterList, counter+1)
+		w1CounterList = append(w1CounterList, client.CT[keywords[0]] + 1)
+		w2CounterList = append(w2CounterList, client.CT[keywords[1]] + 1)
 		result, clientTime, serverTime := client.Search(keywords)
 		totalTime := time.Since(totalStart)
 
@@ -161,12 +163,12 @@ func SearchPhase(tableName, fileName string) {
 	resultPath := filepath.Join("result", "Search", "SDSSE-CQ", tableName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
 	// 定义结果表头
-	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength", "counter"}
+	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength", "w1", "w2"}
 
 	// 将结果数据整理成表格形式
 	resultData := make([][]string, len(resultList))
 	for i, keywords := range keywordsList {
-		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientTimeList[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(counterList[i])}
+		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientTimeList[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(w1CounterList[i]), strconv.Itoa(w2CounterList[i])}
 	}
 
 	// 将结果写入文件

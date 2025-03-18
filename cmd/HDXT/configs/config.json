@@ -1,6 +1,6 @@
 {
-    "db": "sse",
+    "db": "Crime_USENIX_REV_toy",
     "phase": "cs",
-    "group": "keywords_2n.txt",
+    "group": "keywords_2n_generated_toy.txt",
     "del_rate": 0
 }

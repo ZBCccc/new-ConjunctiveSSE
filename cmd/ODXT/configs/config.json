@@ -1,6 +1,6 @@
 {
     "db": "Crime_USENIX_REV",
     "phase": "cs",
-    "group": "w2_keywords_2.txt",
+    "group": "keywords_2n_generated.txt",
     "del_rate": 0
 }
