@@ -1,0 +1,8 @@
+keyword ,clientTime ,serverTime ,totalTime ,resultLength ,payloadSize ,counter
+F0#F7   ,       196 ,        81 ,      279 ,           0 ,        400 ,     10
+F0#F1   ,       120 ,        93 ,      215 ,           0 ,        400 ,     10
+F0#F2   ,       140 ,       101 ,      243 ,           0 ,        400 ,     10
+F0#F3   ,        80 ,        43 ,      124 ,           0 ,        400 ,     10
+F0#F4   ,        88 ,        76 ,      167 ,           0 ,        400 ,     10
+F0#F5   ,        77 ,        91 ,      169 ,           1 ,        400 ,     10
+F0#F6   ,        60 ,        77 ,      139 ,           4 ,        400 ,     10

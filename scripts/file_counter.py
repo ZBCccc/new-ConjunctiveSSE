@@ -13,9 +13,9 @@ def main():
     parser = argparse.ArgumentParser(description='统计MongoDB中每个关键词拥有的文件ID数量')
     parser.add_argument('--host', default='localhost', help='MongoDB主机地址')
     parser.add_argument('--port', type=int, default=27017, help='MongoDB端口')
-    parser.add_argument('--db', default='Crime_USENIX_REV_toy', help='MongoDB数据库名称')
+    parser.add_argument('--db', default='Enron_USENIX', help='MongoDB数据库名称')
     parser.add_argument('--collection', default='id_keywords', help='MongoDB集合名称')
-    parser.add_argument('--output', default='cmd/HDXT/configs/filecnt_toy.json', help='输出JSON文件路径')
+    parser.add_argument('--output', default='cmd/HDXT/configs/Enron_USENIX_filecnt.json', help='输出JSON文件路径')
     parser.add_argument('--batch-size', type=int, default=1000, help='批处理大小')
     args = parser.parse_args()
 
@@ -49,9 +49,9 @@ def main():
         
         for doc in tqdm(cursor, total=total_docs, desc="处理进度"):
             # 确保文档包含所需字段
-            if "id" in doc and "val_st" in doc:
+            if "id" in doc and "keywords" in doc:
                 # 获取关键词列表
-                keywords = doc["val_st"]
+                keywords = doc["keywords"]
                 
                 # 对每个关键词计数（去重，每个ID只计算一次）
                 unique_keywords = set(keywords)
