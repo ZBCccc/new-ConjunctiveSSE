@@ -5,8 +5,8 @@ import json
 import os
 
 # 输入和输出文件路径
-input_file = "cmd/HDXT/configs/filecnt_toy_sorted.json"
-output_file = "cmd/HDXT/configs/keywords_2n_generated_toy.txt"
+input_file = "cmd/HDXT/configs/Enron_USENIX_filecnt_sorted.json"
+output_file = "cmd/HDXT/configs/Enron_USENIX_keywords_w1_generated.txt"
 
 # 确保输入文件存在
 if not os.path.exists(input_file):

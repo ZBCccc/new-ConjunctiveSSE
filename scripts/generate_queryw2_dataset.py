@@ -5,8 +5,8 @@ import json
 import os
 
 # 输入和输出文件路径
-input_file = "cmd/ODXT/configs/filecnt_sorted.json"
-output_file = "cmd/ODXT/configs/w2_keywords_2.txt"
+input_file = "cmd/HDXT/configs/Enron_USENIX_filecnt_sorted.json"
+output_file = "cmd/HDXT/configs/Enron_USENIX_w2_keywords_2.txt"
 
 # 确保输入文件存在
 if not os.path.exists(input_file):
@@ -46,7 +46,7 @@ print(f"找到 {len(second_keywords)} 个不同出现次数的关键词")
 print(f"正在生成查询数据集到 {output_file}...")
 with open(output_file, 'w', encoding='utf-8') as f:
     for second_keyword in second_keywords:
-        query = f"{first_keyword}#{second_keyword}\n"
+        query = f"{second_keyword}#{first_keyword}\n"
         f.write(query)
 
 print(f"查询数据集生成完成！共生成 {len(second_keywords)} 条查询") 

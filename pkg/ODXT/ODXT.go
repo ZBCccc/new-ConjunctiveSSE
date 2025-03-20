@@ -220,7 +220,7 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 	}
 
 	// 设置结果文件的路径和名称
-	resultpath := filepath.Join("result", "Search", "ODXT", tableName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
+	resultpath := filepath.Join("result", "Search", "ODXT", tableName, "w2_keywords_2")
 
 	// 定义结果表头
 	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength", "payloadSize", "w1", "w2"}
