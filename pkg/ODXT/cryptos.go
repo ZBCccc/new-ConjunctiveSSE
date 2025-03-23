@@ -67,19 +67,13 @@ func (odxt *ODXT) encrypt(keyword string, id string, operation utils.Operation) 
 }
 
 // Search 搜索，生成search token
-func (odxt *ODXT) Search(q []string) (time.Duration, time.Duration, []utils.SEOp) {
-	start := time.Now()
-	// 生成陷门
-	stokenList, xtokenList := odxt.ClientSearchStep1(q)
-	trapdoorTime := time.Since(start)
-
+func (odxt *ODXT) Search(stokenList []string, xtokenList [][]*pbc.Element) ([]utils.SEOp) {
 	sEOpList := make([]utils.SEOp, len(stokenList))
-	start = time.Now()
 	// 搜索数据
 	var wg sync.WaitGroup
 	for j, stoken := range stokenList {
 		wg.Add(1)
-		go func (j int)  {
+		go func(j int) {
 			defer wg.Done()
 			cnt := 1
 			val, alpha := odxt.TSet[stoken].Val, odxt.TSet[stoken].Alpha
@@ -99,24 +93,14 @@ func (odxt *ODXT) Search(q []string) (time.Duration, time.Duration, []utils.SEOp
 		}(j)
 	}
 	wg.Wait()
-	serverTime := time.Since(start)
-	return trapdoorTime, serverTime, sEOpList
+	return sEOpList
 }
 
 // ClientSearchStep1 生成陷门
-func (odxt *ODXT) ClientSearchStep1(q []string) ([]string, [][]*pbc.Element) {
+func (odxt *ODXT) ClientSearchStep1(w1 string, q []string) ([]string, [][]*pbc.Element) {
 	// 读取密钥
 	kt, kx, kz := odxt.Keys[0], odxt.Keys[1], odxt.Keys[3]
-	counter, w1, st := 1000000, q[0], odxt.UpdateCnt
-
-	// 选择查询频率最低的关键字
-	for _, w := range q {
-		num := st[w]
-		if num < counter {
-			w1 = w
-			counter = num
-		}
-	}
+	counter := odxt.UpdateCnt[w1]
 
 	// 初始化stokenList和xtokenList
 	stokenList := make([]string, counter)
@@ -126,7 +110,7 @@ func (odxt *ODXT) ClientSearchStep1(q []string) ([]string, [][]*pbc.Element) {
 	}
 	qt := utils.RemoveElement(q, w1)
 	xtoken1List := make([]*pbc.Element, len(qt))
-	
+
 	for i, wi := range qt {
 		xtoken1, _ := pbcUtil.PrfToZr(kx, []byte(wi))
 		xtoken1List[i] = xtoken1
@@ -136,52 +120,37 @@ func (odxt *ODXT) ClientSearchStep1(q []string) ([]string, [][]*pbc.Element) {
 		wg.Add(1)
 		go func(j int) {
 			defer wg.Done()
-			saddr, err := utils.PrfF(kt, append(append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...), byte(0)))
+			msgLen := len(w1) + len(big.NewInt(int64(j+1)).Bytes())
+			msg := make([]byte, 0, msgLen)
+
+			msg = append(msg, []byte(w1)...)
+			msg = append(msg, big.NewInt(int64(j+1)).Bytes()...)
+			saddr, err := utils.PrfF(kt, append(msg, byte(0)))
 			if err != nil {
 				fmt.Println(err)
 			}
 			stokenList[j] = string(saddr)
-			xtoken2, _ := pbcUtil.PrfToZr(kz, append([]byte(w1), big.NewInt(int64(j+1)).Bytes()...))
-			var wgg sync.WaitGroup
+			xtoken2, _ := pbcUtil.PrfToZr(kz, msg)
 			for i := range qt {
-				wgg.Add(1)
-				go func(i, j int) {
-					defer wgg.Done()
-					xtoken1 := xtoken1List[i]
-					xtoken := pbcUtil.GToPower2(xtoken1, xtoken2)
-					xtokenList[j][i] = xtoken
-				}(i, j)
+				xtoken1 := xtoken1List[i]
+				xtoken := pbcUtil.GToPower2(xtoken1, xtoken2)
+				xtokenList[j][i] = xtoken
 			}
-			wgg.Wait()
 		}(j)
 	}
 	wg.Wait()
 	return stokenList, xtokenList
 }
 
-// Decrypt 解密
-func (odxt *ODXT) Decrypt(q []string, sEOpList []utils.SEOp) ([]string, error) {
+// ClientSearchStep2 解密
+func (odxt *ODXT) ClientSearchStep2(w1 string, q []string, sEOpList []utils.SEOp) []string {
 	kt := odxt.Keys[0]
-	counter, w1, st := 1000000, q[0], odxt.UpdateCnt
-
-	// 选择查询频率最低的关键字
-	for _, w := range q {
-		num := st[w]
-		if num < counter {
-			w1 = w
-			counter = num
-		}
-	}
 
 	sIdList := make([]string, 0)
 	for _, sEOp := range sEOpList {
 		j, sval, cnt := sEOp.J, sEOp.Sval, sEOp.Cnt
 		w1Andj := append(append([]byte(w1), big.NewInt(int64(j)).Bytes()...), big.NewInt(int64(1)).Bytes()...)
-		tmp, err := utils.PrfF(kt, w1Andj)
-		if err != nil {
-			fmt.Println(err)
-			return nil, err
-		}
+		tmp, _ := utils.PrfF(kt, w1Andj)
 		id := make([]byte, 31)
 		val := []byte(sval)
 		for i := range 31 {
@@ -195,5 +164,5 @@ func (odxt *ODXT) Decrypt(q []string, sEOpList []utils.SEOp) ([]string, error) {
 		}
 	}
 
-	return sIdList, nil
+	return sIdList
 }

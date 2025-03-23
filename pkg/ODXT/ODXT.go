@@ -30,7 +30,6 @@ var (
 	PlaintextDB *mongo.Database
 )
 
-
 type ODXT struct {
 	Keys      [4][]byte
 	UpdateCnt map[string]int
@@ -189,28 +188,36 @@ func (odxt *ODXT) SearchPhase(tableName, fileName string) {
 		// find w1's lens
 		// 选择查询频率最低的关键字
 		counter := math.MaxInt
+		var w1 string
 		for _, w := range keywords {
 			num := odxt.UpdateCnt[w]
 			if num < counter {
 				counter = num
+				w1 = w
 			}
 		}
-		w1CounterList = append(w1CounterList, counter)
-		w2CounterList = append(w2CounterList, odxt.UpdateCnt[keywords[1]])
-		trapdoorTime, serverTime, sEOpList := odxt.Search(keywords)
+
+		// 生成陷门
+		start := time.Now()
+		stokenList, xtokenList := odxt.ClientSearchStep1(w1, keywords)
+		trapdoorTime := time.Since(start)
+
+		// 服务器检索
+		start = time.Now()
+		sEOpList := odxt.Search(stokenList, xtokenList)
+		serverTime := time.Since(start)
 
 		// 解密密文获得最终结果
-		start := time.Now()
-		sIdList, err := odxt.Decrypt(keywords, sEOpList)
-		if err != nil {
-			log.Fatal(err)
-		}
+		start = time.Now()
+		sIdList := odxt.ClientSearchStep2(w1, keywords, sEOpList)
 		decryptTime := time.Since(start)
 
 		clientTime := trapdoorTime + decryptTime
 		totalTime := time.Since(totalStart)
 
 		// 将结果添加到结果列表
+		w1CounterList = append(w1CounterList, counter)
+		w2CounterList = append(w2CounterList, odxt.UpdateCnt[keywords[1]])
 		resultList = append(resultList, sIdList)
 		clientTimeList = append(clientTimeList, clientTime) // clientTimeList = trapdoorTime + decryptTime
 		serverTimeList = append(serverTimeList, serverTime) // serverTimeList = serverTime

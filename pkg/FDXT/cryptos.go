@@ -3,7 +3,6 @@ package FDXT
 import (
 	"ConjunctiveSSE/pkg/utils"
 	pbcUtil "ConjunctiveSSE/pkg/utils/pbc"
-	"encoding/base64"
 	"fmt"
 	"math"
 	"math/big"
@@ -57,7 +56,7 @@ func (fdxt *FDXT) ClientSearchStep1(q []string) (string, []*TKL, []string, [][]*
 			if err != nil {
 				return "", nil, nil, nil, err
 			}
-			tklList = append(tklList, &TKL{L: base64.StdEncoding.EncodeToString(l), T: base64.StdEncoding.EncodeToString(t)})
+			tklList = append(tklList, &TKL{L: string(l), T: string(t)})
 		}
 	}
 	STKL := make([]string, fdxt.Count[w1].Max)
@@ -76,7 +75,7 @@ func (fdxt *FDXT) ClientSearchStep1(q []string) (string, []*TKL, []string, [][]*
 				fmt.Println(err)
 				return
 			}
-			STKL[j-1] = base64.StdEncoding.EncodeToString(addr)
+			STKL[j-1] = string(addr)
 			xtkList[j] = make([]*pbc.Element, 0, len(qt))
 			for _, w := range qt {
 				xtk1, err := pbcUtil.PrfToZr(kx, []byte(w))
@@ -107,16 +106,10 @@ func (fdxt *FDXT) ServerSearch(n int, tklList []*TKL, stklList []string, xtkList
 	resList := make([]*RES, len(stklList))
 	for _, tkl := range tklList {
 		l, t := tkl.L, tkl.T
-		c, err := base64.StdEncoding.DecodeString(fdxt.CDBXtag[l])
-		if err != nil {
-			return nil, err
-		}
-		tBytes, err := base64.StdEncoding.DecodeString(t)
-		if err != nil {
-			return nil, err
-		}
+		c := []byte(fdxt.CDBXtag[l])
+		tBytes := []byte(t)
 		xtag := utils.BytesXOR(c, tBytes)
-		fdxt.XSet[base64.StdEncoding.EncodeToString(xtag)] = 1
+		fdxt.XSet[string(xtag)] = 1
 	}
 	var wg sync.WaitGroup
 	for j := range stklList {
@@ -128,7 +121,7 @@ func (fdxt *FDXT) ServerSearch(n int, tklList []*TKL, stklList []string, xtkList
 			for k := 0; k < n-1; k++ {
 				xtk := xtkList[j+1][k]
 				xtag := pbcUtil.Pow(xtk, alpha)
-				if _, ok := fdxt.XSet[base64.StdEncoding.EncodeToString(xtag.Bytes())]; ok {
+				if _, ok := fdxt.XSet[string(xtag.Bytes())]; ok {
 					cnt++
 				}
 			}
@@ -152,10 +145,7 @@ func (fdxt *FDXT) ClientSearchStep2(w1 string, ws []string, resList []*RES) ([]s
 		if err != nil {
 			return nil, err
 		}
-		valBytes, err := base64.StdEncoding.DecodeString(val)
-		if err != nil {
-			return nil, err
-		}
+		valBytes := []byte(val)
 		idOp := utils.BytesXOR(valBytes, dec1)
 		op := Operation(idOp[len(idOp)-1])
 		id := string(idOp[:len(idOp)-1])

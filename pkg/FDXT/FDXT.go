@@ -4,7 +4,6 @@ import (
 	"ConjunctiveSSE/pkg/Database"
 	"ConjunctiveSSE/pkg/utils"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -198,8 +197,8 @@ func (fdxt *FDXT) Encrypt(keyword string, ids []string, op Operation) (time.Dura
 		clientTime += time.Since(start)
 
 		// server part
-		fdxt.CDBXtag[base64.StdEncoding.EncodeToString(l)] = base64.StdEncoding.EncodeToString(c)
-		fdxt.CDBTSet[base64.StdEncoding.EncodeToString(addr)] = &TsetValue{Val: base64.StdEncoding.EncodeToString(val), Alpha: alpha}
+		fdxt.CDBXtag[string(l)] = string(c)
+		fdxt.CDBTSet[string(addr)] = &TsetValue{Val: string(val), Alpha: alpha}
 	}
 	return clientTime, nil
 }

@@ -13,7 +13,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -118,18 +117,6 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 	return nil
 }
 
-func getMemoryThreshold() uint64 {
-    // 获取系统信息
-    var info syscall.Sysinfo_t
-    if err := syscall.Sysinfo(&info); err != nil {
-        // 如果获取失败，使用默认值
-        return 4 * 1024 * 1024 * 1024 // 默认4GB
-    }
-    
-    // 设置为系统总内存的70%
-    return uint64(float64(info.Totalram) * 0.7)
-}
-
 func (hdxt *HDXT) SetupPhase() error {
 	// 获取MongoDB数据库
 	plaintextDB := hdxt.PlaintextDB
@@ -208,18 +195,7 @@ func (hdxt *HDXT) SetupPhase() error {
 	idList = make([]string, 0, len(idKeywords))
 	idKeywordsUpdate := idKeywords[100:]
 	volumeList = make([]int, 0, len(idKeywords))
-	var m runtime.MemStats
-	count := 0
 	for _, idKeyword := range idKeywordsUpdate {
-		// log.Println("Processing id:", idKeyword["id"])
-		count++
-		// log.Println("Count:", count)
-		runtime.ReadMemStats(&m)
-		if m.Alloc > getMemoryThreshold() {
-			log.Println("Memory threshold reached, performing GC")
-			runtime.GC()
-			log.Println("Count:", count)
-		}
 		valSet, ok := idKeyword["val_st"].(primitive.A)
 		if !ok {
 			log.Println("val_set is not of type primitive.A")
