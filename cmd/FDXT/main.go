@@ -51,10 +51,7 @@ func main() {
 func TestFDXT(cfg Config) error {
 	var fdxt FDXT.FDXT
 
-	if err := fdxt.Setup(cfg.Db); err != nil {
-		fmt.Println("DBSetup error", err)
-		return err
-	}
+	fdxt.Setup(cfg.Db)
 	if strings.Contains(cfg.Phase, "c") {
 		t1 := time.Now()
 		err := fdxt.UpdatePhase()

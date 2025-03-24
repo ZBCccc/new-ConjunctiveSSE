@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"math/big"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -47,24 +46,22 @@ var (
 	err         error
 )
 
-func (fdxt *FDXT) Setup(dbName string) error {
+func (fdxt *FDXT) Setup(dbName string) {
 	fdxt.Keys[0] = []byte("0123456789123456")
 	fdxt.Keys[1] = []byte("0123456789123456")
 	fdxt.Keys[2] = []byte("0123456789123456")
 	fdxt.Keys[3] = []byte("0123456789123456")
 	fdxt.Keys[4] = []byte("0123456789123456")
-	fdxt.Count = make(map[string]*Counter)
-	fdxt.CDBXtag = make(map[string]string)
-	fdxt.CDBTSet = make(map[string]*TsetValue)
+	fdxt.Count = make(map[string]*Counter, 1000000)
+	fdxt.CDBXtag = make(map[string]string, 1000000)
+	fdxt.CDBTSet = make(map[string]*TsetValue, 1000000)
 	fdxt.XSet = make(map[string]int, 1000000)
 
 	// 初始化mongodb
 	PlaintextDB, err = Database.MongoDBSetup(dbName)
 	if err != nil {
-		log.Println(err)
-		return err
+		log.Fatal(err)
 	}
-	return nil
 }
 
 func (fdxt *FDXT) UpdatePhase() error {
@@ -146,7 +143,6 @@ func (fdxt *FDXT) Encrypt(keyword string, ids []string, op Operation) (time.Dura
 	}
 	clientTime := time.Duration(0)
 	for _, id := range ids {
-		id = id + "@" + strconv.Itoa(rand.Intn(1000000))
 		start := time.Now()
 		fdxt.Count[keyword].updt++
 		fdxt.Count[keyword].Max++
@@ -155,39 +151,23 @@ func (fdxt *FDXT) Encrypt(keyword string, ids []string, op Operation) (time.Dura
 		msg = append(msg, []byte(keyword)...)
 		msg = append(msg, big.NewInt(int64(fdxt.Count[keyword].Max)).Bytes()...)
 
-		addr, err := utils.PrfF(kw, append(msg, byte(0)))
-		if err != nil {
-			return 0, err
-		}
-		val, err := utils.PrfF(kw, append(msg, byte(1)))
-		if err != nil {
-			return 0, err
-		}
+		addr, _ := utils.PrfF(kw, append(msg, byte(0)))
+		val, _ := utils.PrfF(kw, append(msg, byte(1)))
+		
 		val, err = utils.BytesXORWithOp(val, []byte(id), int(op))
 		if err != nil {
-			return 0, err
+			log.Fatal("BytesXORWithOp err:", err)
 		}
+		
 		msgLen = len(keyword) + len(big.NewInt(int64(fdxt.Count[keyword].srch)).Bytes()) + len(big.NewInt(int64(fdxt.Count[keyword].updt)).Bytes()) + 1
 		msg = make([]byte, 0, msgLen)
 		msg = append(msg, []byte(keyword)...)
 		msg = append(msg, big.NewInt(int64(fdxt.Count[keyword].srch)).Bytes()...)
 		msg = append(msg, big.NewInt(int64(fdxt.Count[keyword].updt)).Bytes()...)
-		l, err := utils.PrfF(kt, append(msg, byte(0)))
-		if err != nil {
-			return 0, err
-		}
-		t, err := utils.PrfF(kt, append(msg, byte(1)))
-		if err != nil {
-			return 0, err
-		}
-		xtag1, err := pbcUtil.PrfToZr(kx, []byte(keyword))
-		if err != nil {
-			return 0, err
-		}
-		xtag2, err := pbcUtil.PrfToZr(ky, append([]byte(id), byte(op)))
-		if err != nil {
-			return 0, err
-		}
+		l, _ := utils.PrfF(kt, append(msg, byte(0)))
+		t, _ := utils.PrfF(kt, append(msg, byte(1)))
+		xtag1, _ := pbcUtil.PrfToZr(kx, []byte(keyword))
+		xtag2, _ := pbcUtil.PrfToZr(ky, append([]byte(id), byte(op)))
 		xtag := pbcUtil.GToPower2(xtag1, xtag2)
 		c := utils.BytesXOR(xtag.Bytes(), t)
 		alpha, _, err := utils.ComputeAlpha(ky, kz, []byte(id), int(op), append([]byte(keyword), big.NewInt(int64(fdxt.Count[keyword].Max)).Bytes()...))
@@ -225,8 +205,9 @@ func (fdxt *FDXT) SearchPhase(tableName, fileName string) error {
 		w2CounterList = append(w2CounterList, fdxt.Count[keywords[1]].Max)
 
 		// client search step 1
+		w1 := keywords[0]
 		start := time.Now()
-		w1, tkl, stkl, xtkList, err := fdxt.ClientSearchStep1(keywords)
+		tkl, stkl, xtkList, err := fdxt.ClientSearchStep1(w1, keywords)
 		if err != nil {
 			log.Println(err)
 			return err
@@ -235,26 +216,19 @@ func (fdxt *FDXT) SearchPhase(tableName, fileName string) error {
 
 		// server search step
 		start = time.Now()
-		resList, err := fdxt.ServerSearch(len(keywords), tkl, stkl, xtkList)
-		if err != nil {
-			log.Println(err)
-			return err
-		}
+		resList := fdxt.ServerSearch(len(keywords), tkl, stkl, xtkList)
 		serverTimeTotal += time.Since(start)
-		payloadSize := CalculateResListSize(resList)
+		
 
 		// client search step 2
 		start = time.Now()
-		sIdList, err := fdxt.ClientSearchStep2(w1, keywords, resList)
-		if err != nil {
-			log.Println(err)
-			return err
-		}
+		sIdList := fdxt.ClientSearchStep2(w1, keywords, resList)
 		clientTimeTotal += time.Since(start)
+		
+		// 将结果添加到结果列表
+		payloadSize := CalculateResListSize(resList)
 		totalTimeList = append(totalTimeList, time.Since(totalStart))
 		payloadSizeList = append(payloadSizeList, payloadSize)
-
-		// 将结果添加到结果列表
 		resultList = append(resultList, sIdList)
 		clientSearchTime = append(clientSearchTime, clientTimeTotal)
 		serverTimeList = append(serverTimeList, serverTimeTotal)

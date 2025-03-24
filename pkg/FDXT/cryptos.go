@@ -4,7 +4,6 @@ import (
 	"ConjunctiveSSE/pkg/utils"
 	pbcUtil "ConjunctiveSSE/pkg/utils/pbc"
 	"fmt"
-	"math"
 	"math/big"
 	"sync"
 
@@ -22,20 +21,12 @@ type TKL struct {
 	L, T string
 }
 
-func (fdxt *FDXT) ClientSearchStep1(q []string) (string, []*TKL, []string, [][]*pbc.Element, error) {
+func (fdxt *FDXT) ClientSearchStep1(w1 string, q []string) ([]*TKL, []string, [][]*pbc.Element, error) {
 	kw, kt, kx, kz := fdxt.Keys[0], fdxt.Keys[1], fdxt.Keys[2], fdxt.Keys[4]
-	counter, w1 := math.MaxInt64, q[0]
-	for _, w := range q {
-		num := fdxt.Count[w].Max
-		if num < counter {
-			w1 = w
-			counter = num
-		}
-	}
-	tklList := make([]*TKL, 0, fdxt.Count[q[0]].updt+fdxt.Count[q[1]].updt)
+	tklList := make([]*TKL, 0, fdxt.Count[q[0]].updt + fdxt.Count[q[1]].updt)
 	for _, w := range q {
 		if _, ok := fdxt.Count[w]; !ok {
-			return "", nil, nil, nil, fmt.Errorf("keyword %s not found", w)
+			return nil, nil, nil, fmt.Errorf("keyword %s not found", w)
 		}
 		srch, updt := fdxt.Count[w].srch, fdxt.Count[w].updt
 		for i := updt; i >= 1; i-- {
@@ -48,14 +39,10 @@ func (fdxt *FDXT) ClientSearchStep1(q []string) (string, []*TKL, []string, [][]*
 			msg = append(msg, big.NewInt(int64(srch)).Bytes()...)
 			msg = append(msg, big.NewInt(int64(i)).Bytes()...)
 
-			l, err := utils.PrfF(kt, append(msg, byte(0)))
-			if err != nil {
-				return "", nil, nil, nil, err
-			}
-			t, err := utils.PrfF(kt, append(msg, byte(1)))
-			if err != nil {
-				return "", nil, nil, nil, err
-			}
+			l, _ := utils.PrfF(kt, append(msg, byte(0)))
+			
+			t, _ := utils.PrfF(kt, append(msg, byte(1)))
+			
 			tklList = append(tklList, &TKL{L: string(l), T: string(t)})
 		}
 	}
@@ -70,31 +57,20 @@ func (fdxt *FDXT) ClientSearchStep1(q []string) (string, []*TKL, []string, [][]*
 			msg := make([]byte, 0, len(w1)+len(big.NewInt(int64(j)).Bytes())+1)
 			msg = append(msg, []byte(w1)...)
 			msg = append(msg, big.NewInt(int64(j)).Bytes()...)
-			addr, err := utils.PrfF(kw, append(msg, byte(0)))
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
+			addr, _ := utils.PrfF(kw, append(msg, byte(0)))
+			
 			STKL[j-1] = string(addr)
 			xtkList[j] = make([]*pbc.Element, 0, len(qt))
 			for _, w := range qt {
-				xtk1, err := pbcUtil.PrfToZr(kx, []byte(w))
-				if err != nil {
-					fmt.Println(err)
-					return
-				}
-				xtk2, err := pbcUtil.PrfToZr(kz, msg)
-				if err != nil {
-					fmt.Println(err)
-					return
-				}
+				xtk1, _ := pbcUtil.PrfToZr(kx, []byte(w))
+				xtk2, _ := pbcUtil.PrfToZr(kz, msg)
 				xtk := pbcUtil.GToPower2(xtk1, xtk2)
 				xtkList[j] = append(xtkList[j], xtk)
 			}
 		}(j)
 	}
 	wg.Wait()
-	return w1, tklList, STKL, xtkList, nil
+	return tklList, STKL, xtkList, nil
 }
 
 type RES struct {
@@ -102,7 +78,7 @@ type RES struct {
 	Cnt int
 }
 
-func (fdxt *FDXT) ServerSearch(n int, tklList []*TKL, stklList []string, xtkList [][]*pbc.Element) ([]*RES, error) {
+func (fdxt *FDXT) ServerSearch(n int, tklList []*TKL, stklList []string, xtkList [][]*pbc.Element) []*RES {
 	resList := make([]*RES, len(stklList))
 	for _, tkl := range tklList {
 		l, t := tkl.L, tkl.T
@@ -129,10 +105,10 @@ func (fdxt *FDXT) ServerSearch(n int, tklList []*TKL, stklList []string, xtkList
 		}(j)
 	}
 	wg.Wait()
-	return resList, nil
+	return resList
 }
 
-func (fdxt *FDXT) ClientSearchStep2(w1 string, ws []string, resList []*RES) ([]string, error) {
+func (fdxt *FDXT) ClientSearchStep2(w1 string, ws []string, resList []*RES) []string{
 	IDL := make([]string, 0, len(resList))
 	for j, res := range resList {
 		val, cnt := res.Val, res.Cnt
@@ -141,10 +117,7 @@ func (fdxt *FDXT) ClientSearchStep2(w1 string, ws []string, resList []*RES) ([]s
 		msg = append(msg, []byte(w1)...)
 		msg = append(msg, big.NewInt(int64(j+1)).Bytes()...)
 		msg = append(msg, byte(1))
-		dec1, err := utils.PrfF(fdxt.Keys[1], msg)
-		if err != nil {
-			return nil, err
-		}
+		dec1, _ := utils.PrfF(fdxt.Keys[1], msg)
 		valBytes := []byte(val)
 		idOp := utils.BytesXOR(valBytes, dec1)
 		op := Operation(idOp[len(idOp)-1])
@@ -160,5 +133,5 @@ func (fdxt *FDXT) ClientSearchStep2(w1 string, ws []string, resList []*RES) ([]s
 		fdxt.Count[w].srch++
 		fdxt.Count[w].updt = 0
 	}
-	return IDL, nil
+	return IDL
 }
