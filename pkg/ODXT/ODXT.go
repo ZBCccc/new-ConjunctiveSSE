@@ -55,15 +55,14 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool) error {
 		odxt.Keys[1] = []byte("0123456789123456")
 		odxt.Keys[2] = []byte("0123456789123456")
 		odxt.Keys[3] = []byte("0123456789123456")
-		// odxt.Keys = ReadKeys(keysPath)
 	}
 
 	// 初始化 UpdateCnt
-	odxt.UpdateCnt = make(map[string]int)
+	odxt.UpdateCnt = make(map[string]int, 1000000)
 
 	// 初始化 XSet 和 TSet
-	odxt.XSet = make(map[string]int)
-	odxt.TSet = make(map[string]*TsetValue)
+	odxt.XSet = make(map[string]int, 1000000)
+	odxt.TSet = make(map[string]*TsetValue, 1000000)
 
 	// 连接MongoDB
 	var err error
@@ -120,7 +119,6 @@ func (odxt *ODXT) CiphertextGenPhase(dbName string) error {
 				continue
 			}
 		}
-		// ids = utils.RemoveDuplicates(ids)
 		keyword := keywordId["k"].(string)
 
 		encryptTime, err := odxt.Encrypt(keyword, ids, utils.Add)

@@ -5,8 +5,6 @@ import (
 	pbcUtil "ConjunctiveSSE/pkg/utils/pbc"
 	"fmt"
 	"math/big"
-	"math/rand"
-	"strconv"
 	"sync"
 	"time"
 
@@ -19,8 +17,6 @@ func (odxt *ODXT) Encrypt(keyword string, ids []string, operation utils.Operatio
 		odxt.UpdateCnt[keyword] = 0
 	}
 	for _, id := range ids {
-		// 在id后添加一个随机数生成新的id,避免重复,例如：假如id为123，则新的id为123@123
-		id = id + "@" + strconv.Itoa(rand.Intn(1000000))
 		encryptedTimeAOperation, err := odxt.encrypt(keyword, id, operation)
 		if err != nil {
 			return encryptedTime, err
