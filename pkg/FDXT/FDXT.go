@@ -236,7 +236,7 @@ func (fdxt *FDXT) SearchPhase(tableName, fileName string) error {
 	}
 
 	// 设置结果文件的路径和名称
-	resultpath := filepath.Join("result", "Search", "FDXT", tableName, "w2_keywords_2")
+	resultpath := filepath.Join("result", "Search", "FDXT", tableName, time.Now().Format("2006-01-02_15-04-05")+"w2_keywords_2.csv")
 
 	// 定义结果表头
 	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength", "payloadSize", "w1", "w2"}
