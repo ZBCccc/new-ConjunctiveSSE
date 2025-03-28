@@ -128,6 +128,7 @@ func SearchPhase(tableName, fileName string) {
 	resultList := make([][]string, 0, len(keywordsList)+1)
 	clientTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	serverTimeList := make([]time.Duration, 0, len(keywordsList)+1)
+	serverAuraTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
 	totalTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	w1CounterList := make([]int, 0, len(keywordsList)+1)
@@ -148,7 +149,7 @@ func SearchPhase(tableName, fileName string) {
 		}
 		w1CounterList = append(w1CounterList, client.CT[keywords[0]] + 1)
 		w2CounterList = append(w2CounterList, client.CT[keywords[1]] + 1)
-		result, clientTime, serverTime := client.Search(keywords)
+		result, clientTime, serverTime, serverAuraTime := client.Search(keywords)
 		totalTime := time.Since(totalStart)
 
 		// 将结果添加到结果列表
@@ -157,18 +158,19 @@ func SearchPhase(tableName, fileName string) {
 		totalTimeList = append(totalTimeList, totalTime)
 		clientTimeList = append(clientTimeList, clientTime)
 		serverTimeList = append(serverTimeList, serverTime)
+		serverAuraTimeList = append(serverAuraTimeList, serverAuraTime)
 	}
 
 	// 设置结果文件的路径和名称
 	resultPath := filepath.Join("result", "Search", "SDSSE-CQ", tableName, "w1_keywords_2")
 
 	// 定义结果表头
-	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength", "w1", "w2"}
+	resultHeader := []string{"keyword", "clientTime", "serverTime", "serverAuraTime", "totalTime", "resultLength", "w1", "w2"}
 
 	// 将结果数据整理成表格形式
 	resultData := make([][]string, len(resultList))
 	for i, keywords := range keywordsList {
-		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientTimeList[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(w1CounterList[i]), strconv.Itoa(w2CounterList[i])}
+		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientTimeList[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(serverAuraTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(w1CounterList[i]), strconv.Itoa(w2CounterList[i])}
 	}
 
 	// 将结果写入文件
