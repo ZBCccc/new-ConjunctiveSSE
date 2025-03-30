@@ -69,3 +69,9 @@ func ComputeAlpha(Ky, Kz, id []byte, op int, wWc []byte) (*pbc.Element, *pbc.Ele
 
 	return alpha, alpha1, nil
 }
+
+func HmacDigest(plaintext, key []byte) []byte {
+	h := hmac.New(sha256.New, key)
+	h.Write(plaintext)
+	return h.Sum(nil)
+}
