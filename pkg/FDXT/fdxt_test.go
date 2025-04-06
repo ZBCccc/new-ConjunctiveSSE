@@ -2,53 +2,29 @@ package FDXT
 
 import (
 	"ConjunctiveSSE/pkg/utils"
-	"context"
+	pbcUtil "ConjunctiveSSE/pkg/utils/pbc"
 	"math/big"
 	"testing"
 	"time"
-
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func TestGenCiphertext(t *testing.T) {
-	// Init fdxt
-	dbName := "Crime_USENIX_REV"
-	var fdxt FDXT
-	fdxt.Setup(dbName)
-	// Init mongo
-	
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	defer PlaintextDB.Client().Disconnect(ctx)
+func TestSearchCommunication(t *testing.T) {
+	wk := "F1438"
+	w1 := "F27628"
+	k := []byte("0123456789123456")
+	xtkStorage := 0
+	for j := 1; j <= 10; j++ {
+		msg := make([]byte, 0, len(w1)+len(big.NewInt(int64(j)).Bytes())+1)
+		msg = append(msg, []byte(w1)...)
+		msg = append(msg, big.NewInt(int64(j)).Bytes()...)
 
-	collection := PlaintextDB.Collection("keyword_ids")
+		xtk1, _ := pbcUtil.PrfToZr(k, []byte(wk))
+		xtk2, _ := pbcUtil.PrfToZr(k, msg)
+		xtk := pbcUtil.GToPower2(xtk1, xtk2)
+		xtkStorage += xtk.BytesLen()
 
-	start := time.Now()
-	// from mongo
-	// 读取第一个 document
-	var result bson.M
-	err = collection.FindOne(ctx, bson.D{}).Decode(&result)
-	if err != nil {
-		t.Fatal(err)
 	}
-	valSet, ok := result["val_set"].(primitive.A)
-	if !ok {
-		t.Fatal("val_set is not of type primitive.A")
-	}
-	ids := make([]string, 0, len(valSet))
-	for _, v := range valSet {
-		if str, ok := v.(string); ok {
-			ids = append(ids, str)
-		} else {
-			t.Fatal("val_set contains non-string value")
-		}
-	}
-	keyword := result["k"].(string)
-
-	_, _ = fdxt.Encrypt(keyword, ids, Add)
-	
-	t.Log("Time cost:", time.Since(start))
+	t.Log("Storage cost:", xtkStorage)
 }
 
 func TestSearch(t *testing.T) {
@@ -69,9 +45,9 @@ func TestSearch(t *testing.T) {
 		msg = append(msg, big.NewInt(int64(i)).Bytes()...)
 
 		l, _ := utils.PrfF(kt, append(msg, byte(0)))
-		
+
 		t, _ := utils.PrfF(kt, append(msg, byte(1)))
-		
+
 		tklList = append(tklList, &TKL{L: string(l), T: string(t)})
 	}
 	t.Log("Time cost:", time.Since(start))
