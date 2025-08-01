@@ -75,7 +75,7 @@ func (c *Client) Update(op util.Operation, keyword string, id string) {
 	c.XSet.Update(op, keyword, base64.StdEncoding.EncodeToString(xTag.Bytes()))
 }
 
-func (c *Client) Search(keywords []string) ([]string, time.Duration, time.Duration, time.Duration) {
+func (c *Client) Search(keywords []string) ([]string, time.Duration, time.Duration) {
 	clientStart := time.Now()
 	// find the least count of keywords
 	minCount := math.MaxInt
@@ -87,7 +87,7 @@ func (c *Client) Search(keywords []string) ([]string, time.Duration, time.Durati
 				w1 = keyword
 			}
 		} else {
-			return nil, 0, 0, 0
+			return nil, 0, 0
 		}
 	}
 
@@ -108,28 +108,22 @@ func (c *Client) Search(keywords []string) ([]string, time.Duration, time.Durati
 	}
 	clientTime := time.Since(clientStart)
 
-	serverTime := time.Duration(0)
 	serverStart := time.Now()
 	// Run Aura.Search
 	ResT := c.TSet.Search(w1)
 	if ResT == nil {
-		return nil, 0, 0, 0
+		return nil, 0, 0
 	}
-	serverAuraTime := time.Since(serverStart)
-	serverTime += time.Since(serverStart)
-
-	serverStart = time.Now()
-	XSet := make(map[string]bool, 100)
+	XSet := make(map[string]bool)
 	for _, wj := range qt {
 		ResX := c.XSet.Search(wj)
 		if ResX == nil {
-			return nil, 0, 0, 0
+			return nil, 0, 0
 		}
 		for _, x := range ResX {
 			XSet[x] = true
 		}
 	}
-	serverTime += time.Duration(float64(time.Since(serverStart)) * 0.9)
 
 	// Server side
 	Res := make([]string, 0, len(ResT))
@@ -150,7 +144,7 @@ func (c *Client) Search(keywords []string) ([]string, time.Duration, time.Durati
 			Res = append(Res, string(e))
 		}
 	}
-	serverTime += time.Since(serverStart)
+	serverTime := time.Since(serverStart)
 
 	clientStart = time.Now()
 	// Client side: decrypt
@@ -165,7 +159,7 @@ func (c *Client) Search(keywords []string) ([]string, time.Duration, time.Durati
 	}
 	clientTime += time.Since(clientStart)
 
-	return ResInd, clientTime, serverTime, serverAuraTime
+	return ResInd, clientTime, serverTime
 }
 
 // 新增辅助函数

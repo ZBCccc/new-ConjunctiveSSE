@@ -4,3 +4,5 @@
 /pic/result
 /DB
 /DB_gen
+/.venv
+*.zip
