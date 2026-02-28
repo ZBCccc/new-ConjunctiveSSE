@@ -28,7 +28,7 @@ func main() {
 		log.Fatalf("failed to create client: %v", err)
 	}
 	
-	// 执行实验
+	// Execute experiment
 	dbName := "Crime_USENIX_REV"
 	updateTime := time.Now()
 	UpdatePhase(c, dbName)
@@ -48,10 +48,10 @@ func UpdatePhase(c *client.FDXTClient, dbName string) {
 	defer PlaintextDB.Client().Disconnect(context.Background())
 
 	// Update Phase
-	// 从MongoDB数据库中获取名为"keyword_ids"的集合
+	// Get collection named 'keyword_ids' from MongoDB database
 	collection := PlaintextDB.Collection("keyword_ids")
 
-	// 创建一个游标，设置不超时并每次获取3000条记录
+	// Create a cursor with no timeout and batch size of 3000
 	ctx := context.TODO()
 	opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(3000)
 	cur, err := collection.Find(ctx, bson.D{}, opts)
@@ -59,16 +59,16 @@ func UpdatePhase(c *client.FDXTClient, dbName string) {
 		log.Fatal(err)
 	}
 
-	// 关闭游标
+	// Close cursor
 	defer cur.Close(ctx)
 
-	// 读取游标中的所有记录
+	// Read all records from cursor
 	var keywordIds []bson.M
 	if err = cur.All(ctx, &keywordIds); err != nil {
 		log.Fatal(err)
 	}
 
-	// 读取所有记录
+	// Read all records
 	encryptTimeList := make([]time.Duration, 0, 1000000)
 	cipherList := make([]int, 0, 1000000)
 	for _, keywordId := range keywordIds {
@@ -118,12 +118,12 @@ func SearchPhase(c *client.FDXTClient, dbName string) {
 	fileName = "./cmd/ODXT/configs/" + fileName
 	keywordsList := utils.QueryKeywordsFromFile(fileName)
 
-	// 初始化结果列表
+	// Initialize result list
 	resultList := make([][]string, 0, len(keywordsList)+1)
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
 	totalTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 
-	// 循环搜索
+	// Search loop
 	for _, keywords := range keywordsList {
 		totalStart := time.Now()
 		sIdList, err := c.Search(keywords)
@@ -132,25 +132,25 @@ func SearchPhase(c *client.FDXTClient, dbName string) {
 		}
 		totalTime := time.Since(totalStart)
 
-		// 将结果添加到结果列表
+		// Add results to result list
 		resultList = append(resultList, sIdList)
 		totalTimeList = append(totalTimeList, totalTime) // totalTimeList = totalTime
 		resultLengthList = append(resultLengthList, len(sIdList))
 	}
 
-	// 设置结果文件的路径和名称
+	// Set result file path and name
 	resultpath := filepath.Join("result", "Search", "FDXT", dbName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
-	// 定义结果表头
+	// Define result header
 	resultHeader := []string{"keyword", "totalTime", "resultLength"}
 
-	// 将结果数据整理成表格形式
+	// Organize result data into tabular form
 	resultData := make([][]string, len(resultList))
 	for i, keywords := range keywordsList {
 		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i])}
 	}
 
-	// 将结果写入文件
+	// Write results to file
 	err := utils.WriteResultToCSV(resultpath, resultHeader, resultData)
 	if err != nil {
 		log.Fatal(err)

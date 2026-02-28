@@ -102,19 +102,19 @@ func UpdatePhase(c *client.ODXTClient, dbName string) {
 		log.Fatal(err)
 	}
 	saveTime := time.Now()
-	// 设置结果文件的路径和名称
+	// Set result file path and name
 	resultpath := filepath.Join("result", "Update", "ODXT", dbName, fmt.Sprintf("%s.csv", saveTime.Format("2006-01-02_15-04-05")))
 
-	// 定义结果表头
+	// Define result header
 	resultHeader := []string{"keyword", "volume", "addTime"}
 
-	// 将结果数据整理成表格形式
+	// Organize result data into tabular form
 	resultData := make([][]string, len(keywordList))
 	for i, keyword := range keywordList {
 		resultData[i] = []string{keyword, strconv.Itoa(volumeList[i]), strconv.Itoa(int(encryptTimeList[i].Microseconds()))}
 	}
 
-	// 将结果写入文件
+	// Write results to file
 	err = utils.WriteResultToCSV(resultpath, resultHeader, resultData)
 	if err != nil {
 		log.Fatal(err)
@@ -126,7 +126,7 @@ func SearchPhase(c *client.ODXTClient, dbName string) {
 	fileName = "./cmd/ODXT/configs/" + fileName
 	keywordsList := utils.QueryKeywordsFromFile(fileName)
 
-	// 初始化结果列表
+	// Initialize result list
 	resultList := make([][]string, 0, len(keywordsList)+1)
 	resultLengthList := make([]int, 0, len(keywordsList)+1)
 	clientTimeList := make([]time.Duration, 0, len(keywordsList)+1)
@@ -134,7 +134,7 @@ func SearchPhase(c *client.ODXTClient, dbName string) {
 
 	totalTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 
-	// 循环搜索
+	// Search loop
 	for _, keywords := range keywordsList {
 		totalStart := time.Now()
 		clientTime, serverTime, sIdList, err := c.Search(keywords)
@@ -143,7 +143,7 @@ func SearchPhase(c *client.ODXTClient, dbName string) {
 		}
 		totalTime := time.Since(totalStart)
 
-		// 将结果添加到结果列表
+		// Add results to result list
 		resultList = append(resultList, sIdList)
 		clientTimeList = append(clientTimeList, clientTime)
 		serverTimeList = append(serverTimeList, serverTime)
@@ -151,19 +151,19 @@ func SearchPhase(c *client.ODXTClient, dbName string) {
 		resultLengthList = append(resultLengthList, len(sIdList))
 	}
 
-	// 设置结果文件的路径和名称
+	// Set result file path and name
 	resultpath := filepath.Join("result", "Search", "ODXT", dbName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
-	// 定义结果表头
+	// Define result header
 	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength"}
 
-	// 将结果数据整理成表格形式
+	// Organize result data into tabular form
 	resultData := make([][]string, len(resultList))
 	for i, keywords := range keywordsList {
 		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientTimeList[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i])}
 	}
 
-	// 将结果写入文件
+	// Write results to file
 	err := utils.WriteResultToCSV(resultpath, resultHeader, resultData)
 	if err != nil {
 		log.Fatal(err)

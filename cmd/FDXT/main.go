@@ -21,7 +21,7 @@ type Config struct {
 
 func main() {
 	var config Config
-	// 读取配置文件
+	// Read config file
 	file, err := os.Open("./cmd/FDXT/configs/config.json")
 	if err != nil {
 		fmt.Println("Error opening config file:", err)
@@ -36,7 +36,7 @@ func main() {
 		return
 	}
 
-	// 使用配置文件中的参数
+	// Use parameters from config file
 	fmt.Println("*********************************************")
 	fmt.Println("Test_on: ", config.Db, "del_rate:", config.DelRate)
 	fmt.Println("Start test_group:", config.Group, "phase:", config.Phase)

@@ -18,7 +18,7 @@ func TestMongoDB(t *testing.T) {
 
 	collection := db.Collection("id_keywords")
 
-	// 查询collection中的一个数据
+	// Query one document from collection
 	var result bson.M
 	err = collection.FindOne(context.TODO(), bson.D{{Key: "k", Value: "F19"}}).Decode(&result)
 	if err != nil {

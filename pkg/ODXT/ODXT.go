@@ -66,6 +66,7 @@ func (odxt *ODXT) DBSetup(dbName string, randomKey bool, mongoURI ...string) err
 	odxt.TSet = make(map[string]*TsetValue, 1000000)
 
 	// Connect to MongoDB
+	var err error
 	PlaintextDB, err = Database.MongoDBSetup(dbName, mongoURI...)
 	if err != nil {
 		log.Println(err)

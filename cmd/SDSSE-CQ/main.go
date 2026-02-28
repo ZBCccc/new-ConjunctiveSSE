@@ -33,7 +33,7 @@ func main() {
 		log.Fatal("Error decoding config file:", err)
 	}
 
-	// 使用配置文件中的参数
+	// Use parameters from config file
 	fmt.Println("*********************************************")
 	fmt.Println("Test_on: ", config.Db, "del_rate:", config.DelRate)
 	fmt.Println("Start test_group:", config.Group, "phase:", config.Phase)

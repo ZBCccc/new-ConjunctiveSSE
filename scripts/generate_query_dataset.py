@@ -4,21 +4,21 @@
 import json
 import os
 
-# 输入和输出文件路径
+# Input and output file paths
 input_file = "cmd/HDXT/configs/Enron_USENIX_filecnt_sorted.json"
 output_file = "cmd/HDXT/configs/Enron_USENIX_keywords_w1_generated.txt"
 
-# 确保输入文件存在
+# Ensure input file exists
 if not os.path.exists(input_file):
-    print(f"错误：找不到输入文件 {input_file}")
+    print(f"Error: Input file not found {input_file}")
     exit(1)
 
-# 读取JSON文件
-print(f"正在读取文件 {input_file}...")
+# Read JSON file
+print(f"Reading file {input_file}...")
 with open(input_file, 'r', encoding='utf-8') as f:
     data = json.load(f)
 
-# 找到出现次数为10的第一个关键词
+# Find the first keyword with occurrence count of 10
 first_keyword = None
 for keyword, count in data.items():
     if count == 10:
@@ -26,12 +26,12 @@ for keyword, count in data.items():
         break
 
 if not first_keyword:
-    print("错误：找不到出现次数为10的关键词")
+    print("Error: Keyword with count 10 not found")
     exit(1)
 
-print(f"第一个关键词（出现次数为10）: {first_keyword}")
+print(f"First keyword (count = 10): {first_keyword}")
 
-# 提取出现次数大于10的关键词，每个出现次数只取第一个
+# Extract keywords with occurrence count > 10, taking only the first for each count
 second_keywords = []
 current_count = None
 for keyword, count in data.items():
@@ -40,13 +40,13 @@ for keyword, count in data.items():
             second_keywords.append(keyword)
             current_count = count
 
-print(f"找到 {len(second_keywords)} 个不同出现次数（>10）的关键词")
+print(f"Found {len(second_keywords)} keywords with different occurrence counts (>10)")
 
-# 生成查询数据集
-print(f"正在生成查询数据集到 {output_file}...")
+# Generate query dataset
+print(f"Generating query dataset to {output_file}...")
 with open(output_file, 'w', encoding='utf-8') as f:
     for second_keyword in second_keywords:
         query = f"{first_keyword}#{second_keyword}\n"
         f.write(query)
 
-print(f"查询数据集生成完成！共生成 {len(second_keywords)} 条查询") 
+print(f"Query dataset generation complete! Generated {len(second_keywords)} queries") 

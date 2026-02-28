@@ -17,8 +17,8 @@ func main() {
 	}
 
 	kaep := keepalive.EnforcementPolicy{
-		MinTime:             5 * time.Second, // 最小ping间隔
-		PermitWithoutStream: true,            // 允许无流ping
+		MinTime:             5 * time.Second, // Minimum ping interval
+		PermitWithoutStream: true,            // Allow ping without stream
 	}
 
 	kasp := keepalive.ServerParameters{

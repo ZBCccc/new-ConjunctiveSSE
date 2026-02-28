@@ -20,7 +20,7 @@ type Config struct {
 
 func main() {
 	var config Config
-	// 读取配置文件
+	// Read config file
 	file, err := os.Open("./cmd/HDXT/configs/config.json")
 	if err != nil {
 		log.Fatal("Error opening config file:", err)
@@ -33,7 +33,7 @@ func main() {
 		log.Fatal("Error decoding config file:", err)
 	}
 
-	// 使用配置文件中的参数
+	// Use parameters from config file
 	log.Println("*********************************************")
 	log.Println("Test_on: ", config.Db, "del_rate:", config.DelRate)
 	log.Println("Start test_group:", config.Group, "phase:", config.Phase)

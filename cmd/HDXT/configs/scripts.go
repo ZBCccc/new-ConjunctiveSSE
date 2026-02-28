@@ -23,7 +23,7 @@ func main() {
 
 	collection := PlaintextDB.Collection("id_keywords")
 
-	// 创建一个游标，设置不超时并每次获取1000条记录
+	// Create a cursor with no timeout and batch size of 1000
 	ctx := context.TODO()
 	opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(1000)
 	cur, err := collection.Find(ctx, bson.D{}, opts)
@@ -31,10 +31,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// 关闭游标
+	// Close cursor
 	defer cur.Close(ctx)
 
-	// 读取游标中的所有记录
+	// Read all records from cursor
 	var idKeywords []bson.M
 	if err = cur.All(ctx, &idKeywords); err != nil {
 		log.Fatal(err)
@@ -61,15 +61,15 @@ func main() {
 	}
 
 	keywordsList = utils.RemoveDuplicates(keywordsList)
-	// 从keywordsList中随机选择2个关键词，共形成numPairs对
+	// Randomly select 2 keywords from keywordsList to form numPairs pairs
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	keywordsPair := make([][]string, 10000)
 	for i := 0; i < 10000; i++ {
-		// 创建一个新的切片来避免重复
+		// Create a new slice to avoid duplicates
 		shuffledKeywords := make([]string, len(keywordsList))
 		copy(shuffledKeywords, keywordsList)
 
-		// 随机选择两个不同的关键词
+		// Randomly select two different keywords
 		r.Shuffle(len(shuffledKeywords), func(i, j int) {
 			shuffledKeywords[i], shuffledKeywords[j] = shuffledKeywords[j], shuffledKeywords[i]
 		})
@@ -77,14 +77,14 @@ func main() {
 	}
 	utils.WriteResultToFile("cmd/HDXT/configs/keywords_2.txt", keywordsPair)
 
-	// 从keywordsList中随机选择6个关键词，共形成numPairs对
+	// Randomly select 6 keywords from keywordsList to form numPairs pairs
 	keywordsSix := make([][]string, 10000)
 	for i := 0; i < 10000; i++ {
-		// 创建一个新的切片来避免重复
+		// Create a new slice to avoid duplicates
 		shuffledKeywords := make([]string, len(keywordsList))
 		copy(shuffledKeywords, keywordsList)
 
-		// 随机选择两个不同的关键词
+		// Randomly select two different keywords
 		r.Shuffle(len(shuffledKeywords), func(i, j int) {
 			shuffledKeywords[i], shuffledKeywords[j] = shuffledKeywords[j], shuffledKeywords[i]
 		})
