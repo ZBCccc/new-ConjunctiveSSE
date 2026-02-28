@@ -62,10 +62,10 @@ func (odxt *ODXT) encrypt(keyword string, id string, operation utils.Operation) 
 	return encryptedTime, nil
 }
 
-// Search 搜索，生成search token
+// Search performs search, generates search tokens
 func (odxt *ODXT) Search(stokenList []string, xtokenList [][]*pbc.Element) ([]utils.SEOp) {
 	sEOpList := make([]utils.SEOp, len(stokenList))
-	// 搜索数据
+	// Search data
 	var wg sync.WaitGroup
 	for j, stoken := range stokenList {
 		wg.Add(1)
@@ -73,9 +73,9 @@ func (odxt *ODXT) Search(stokenList []string, xtokenList [][]*pbc.Element) ([]ut
 			defer wg.Done()
 			cnt := 1
 			val, alpha := odxt.TSet[stoken].Val, odxt.TSet[stoken].Alpha
-			// 遍历 xtokenList
+			// Iterate over xtokenList
 			for _, xtoken := range xtokenList[j] {
-				// 判断 xtag 是否匹配
+				// Check if xtag matches
 				xtag := pbcUtil.Pow(xtoken, alpha)
 				if _, ok := odxt.XSet[string(xtag.Bytes())]; ok {
 					cnt++
@@ -92,13 +92,13 @@ func (odxt *ODXT) Search(stokenList []string, xtokenList [][]*pbc.Element) ([]ut
 	return sEOpList
 }
 
-// ClientSearchStep1 生成陷门
+// ClientSearchStep1 generates trapdoor
 func (odxt *ODXT) ClientSearchStep1(w1 string, q []string) ([]string, [][]*pbc.Element) {
-	// 读取密钥
+	// Read keys
 	kt, kx, kz := odxt.Keys[0], odxt.Keys[1], odxt.Keys[3]
 	counter := odxt.UpdateCnt[w1]
 
-	// 初始化stokenList和xtokenList
+	// Initialize stokenList and xtokenList
 	stokenList := make([]string, counter)
 	xtokenList := make([][]*pbc.Element, counter)
 	for i := range xtokenList {
@@ -138,7 +138,7 @@ func (odxt *ODXT) ClientSearchStep1(w1 string, q []string) ([]string, [][]*pbc.E
 	return stokenList, xtokenList
 }
 
-// ClientSearchStep2 解密
+// ClientSearchStep2 decrypts
 func (odxt *ODXT) ClientSearchStep2(w1 string, q []string, sEOpList []utils.SEOp) []string {
 	kt := odxt.Keys[0]
 

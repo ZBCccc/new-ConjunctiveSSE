@@ -49,14 +49,14 @@ func texFileRead(filePath string) ([]idCount, error) {
 	return idCounts, nil
 }
 
-func GenDeletePairs(filePath string, num int) []deletePair {
-	// 1.读取.txt文件，文件的格式为string:int，其中key是文件id，value是该文件id所包含的关键词的数量
+func GenDeletePairs(filePath string, num int, mongoURI, dbName string) []deletePair {
+	// 1. Read .txt file; format is string:int where key=file id, value=keyword count for that file
 	idCounts, err := texFileRead(filePath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// 2.边累加边记录id，直到累加和达到num
+	// 2. Accumulate IDs until the sum of keyword counts reaches num
 	var deleteIDs []string
 	sum := 0
 	for _, val := range idCounts {
@@ -67,8 +67,8 @@ func GenDeletePairs(filePath string, num int) []deletePair {
 		}
 	}
 
-	// 3.得到id，从mongodb数据库中读取id和对应的keywords，保存在deletePair中
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
+	// 3. Fetch keywords for each ID from MongoDB
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(mongoURI))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func GenDeletePairs(filePath string, num int) []deletePair {
 		}
 	}()
 
-	db := client.Database("Wiki_USENIX")
+	db := client.Database(dbName)
 	collection := db.Collection("id_keywords")
 
 	deletePairs := make([]deletePair, len(deleteIDs))
@@ -89,9 +89,9 @@ func GenDeletePairs(filePath string, num int) []deletePair {
 		if err != nil {
 			log.Fatal(err)
 		}
-		// 假设 val_set 是一个数组（切片）
+		// Assume val_set is an array (slice)
 		if valSet, ok := result["val_st"].(primitive.A); ok {
-			// 遍历 val_set 数组，提取其中的字符串元素
+			// Traverse val_set array to extract string elements
 			deletePairs[i].Keywords = make([]string, 0, len(valSet))
 			for _, v := range valSet {
 				if str, ok := v.(string); ok {
@@ -101,6 +101,6 @@ func GenDeletePairs(filePath string, num int) []deletePair {
 		}
 	}
 
-	// 4.返回deletePair
+	// 4. Return deletePairs
 	return deletePairs
 }

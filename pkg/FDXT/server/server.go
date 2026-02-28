@@ -34,7 +34,7 @@ func (s *FDXTServer) Update(stream pb.FDXTService_UpdateServer) error {
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
-			// 流结束，返回结果
+			// Stream ends, return result
 			s.CDBXtag = cdbXtag
 			s.CDBTSet = cdbTset
 			return stream.SendAndClose(&pb.UpdateResponse{})
@@ -43,7 +43,7 @@ func (s *FDXTServer) Update(stream pb.FDXTService_UpdateServer) error {
 			return err
 		}
 
-		// 合并每个批次的 map
+		// Merge each batch's map
 		for k, v := range req.CDBTset {
 			cdbTset[k] = &FDXT.TsetValue{
 				Val:   v.Val,

@@ -5,6 +5,7 @@ import (
 	"ConjunctiveSSE/pkg/ODXT/client"
 	"ConjunctiveSSE/pkg/utils"
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -18,7 +19,10 @@ import (
 )
 
 func main() {
-	c, err := client.NewODXTClient("10.12.188.9:50051")
+	serverAddr := flag.String("server", "localhost:50051", "gRPC server address (host:port)")
+	flag.Parse()
+
+	c, err := client.NewODXTClient(*serverAddr)
 	if err != nil {
 		log.Fatalf("failed to create client: %v", err)
 	}

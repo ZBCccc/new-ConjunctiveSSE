@@ -26,13 +26,13 @@ var (
 	client      *sdssecqClient.Client
 )
 
-func Init(dbName string) error {
-	// 初始化Client
+func Init(dbName string, mongoURI string) error {
+	// Initialize Client
 	client = sdssecqClient.NewClient()
 
-	// 连接MongoDB
+	// Connect to MongoDB
 	var err error
-	PlaintextDB, err = Database.MongoDBSetup(dbName)
+	PlaintextDB, err = Database.MongoDBSetup(dbName, mongoURI)
 	if err != nil {
 		log.Println(err)
 		return err
@@ -46,13 +46,13 @@ func CiphertextGenPhase(dbName string) error {
 	defer PlaintextDB.Client().Disconnect(ctx)
 
 	collection := PlaintextDB.Collection("keyword_ids")
-	// 先获取总数以预分配空间
+	// Get total count first to pre-allocate space
 	count, err := collection.CountDocuments(ctx, bson.D{})
 	if err != nil {
 		return fmt.Errorf("count documents failed: %w", err)
 	}
 
-	// 使用实际数量预分配
+	// Pre-allocate using actual count
 	encryptTimeList := make([]time.Duration, 0, count)
 	keywordList := make([]string, 0, count)
 	volumeList := make([]int, 0, count)
@@ -69,7 +69,7 @@ func CiphertextGenPhase(dbName string) error {
 		return fmt.Errorf("read cursor failed: %w", err)
 	}
 
-	// 读取所有记录
+	// Read all records
 	for _, keywordId := range keywordIds {
 		valSet, ok := keywordId["val_set"].(primitive.A)
 		if !ok {
@@ -99,19 +99,19 @@ func CiphertextGenPhase(dbName string) error {
 	}
 	saveTime := time.Now()
 
-	// 设置结果文件的路径和名称
+	// Set the path and name of the result file
 	resultPath := filepath.Join("result", "Update", "SDSSE-CQ", dbName, fmt.Sprintf("%s.csv", saveTime.Format("2006-01-02_15-04-05")))
 
-	// 定义结果表头
+	// Define the result header
 	resultHeader := []string{"keyword", "volume", "addTime"}
 
-	// 将结果数据整理成表格形式
+	// Organize result data into tabular form
 	resultData := make([][]string, len(keywordList))
 	for i, keyword := range keywordList {
 		resultData[i] = []string{keyword, strconv.Itoa(volumeList[i]), strconv.Itoa(int(encryptTimeList[i].Microseconds()))}
 	}
 
-	// 将结果写入文件
+	// Write results to file
 	err = utils.WriteResultToCSV(resultPath, resultHeader, resultData)
 	if err != nil {
 		log.Println(err)
@@ -124,7 +124,7 @@ func SearchPhase(tableName, fileName string) {
 	fileName = "./cmd/SDSSE-CQ/configs/" + fileName
 	keywordsList := utils.QueryKeywordsFromFile(fileName)
 
-	// 初始化结果列表
+	// Initialize result list
 	resultList := make([][]string, 0, len(keywordsList)+1)
 	clientTimeList := make([]time.Duration, 0, len(keywordsList)+1)
 	serverTimeList := make([]time.Duration, 0, len(keywordsList)+1)
@@ -135,11 +135,11 @@ func SearchPhase(tableName, fileName string) {
 	w2CounterList := make([]int, 0, len(keywordsList)+1)
 	// payloadSizeList := make([]int, 0, len(keywordsList)+1)
 
-	// 循环搜索
+	// Search loop
 	for _, keywords := range keywordsList {
 		totalStart := time.Now()
 		// find w1's lens
-		// 选择查询频率最低的关键字
+		// Select the keyword with the lowest query frequency
 		counter := math.MaxInt
 		for _, w := range keywords {
 			num := client.CT[w]
@@ -152,7 +152,7 @@ func SearchPhase(tableName, fileName string) {
 		result, clientTime, serverTime, serverAuraTime := client.Search(keywords)
 		totalTime := time.Since(totalStart)
 
-		// 将结果添加到结果列表
+		// Add results to the result list
 		resultList = append(resultList, result)
 		resultLengthList = append(resultLengthList, len(result))
 		totalTimeList = append(totalTimeList, totalTime)
@@ -161,21 +161,20 @@ func SearchPhase(tableName, fileName string) {
 		serverAuraTimeList = append(serverAuraTimeList, serverAuraTime)
 	}
 
-	// 设置结果文件的路径和名称
+	// Set the path and name of the result file
 	resultPath := filepath.Join("result", "Search", "SDSSE-CQ", tableName, "w1_keywords_2")
 
-	// 定义结果表头
+	// Define the result header
 	resultHeader := []string{"keyword", "clientTime", "serverTime", "serverAuraTime", "totalTime", "resultLength", "w1", "w2"}
 
-	// 将结果数据整理成表格形式
+	// Organize result data into tabular form
 	resultData := make([][]string, len(resultList))
 	for i, keywords := range keywordsList {
 		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientTimeList[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(serverAuraTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(w1CounterList[i]), strconv.Itoa(w2CounterList[i])}
 	}
 
-	// 将结果写入文件
 	err := utils.WriteResultToCSV(resultPath, resultHeader, resultData)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 }

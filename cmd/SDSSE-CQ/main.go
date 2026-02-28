@@ -12,10 +12,11 @@ import (
 
 
 type Config struct {
-	Db               string `json:"db"`
-	Phase            string `json:"phase"`
-	Group            string `json:"group"`
-	DelRate          int    `json:"del_rate"`
+	Db       string `json:"db"`
+	Phase    string `json:"phase"`
+	Group    string `json:"group"`
+	DelRate  int    `json:"del_rate"`
+	MongoURI string `json:"mongo_uri"`
 }
 
 func main() {
@@ -46,7 +47,7 @@ func main() {
 }
 
 func TestSDSSE_CQ(cfg Config) error {
-	err := sdssecq.Init(cfg.Db)
+	err := sdssecq.Init(cfg.Db, cfg.MongoURI)
 	if err != nil {
 		log.Fatal("Error initializing db:", err)
 	}

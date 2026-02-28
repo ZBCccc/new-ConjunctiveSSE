@@ -55,25 +55,24 @@ var (
 	universeIDs          []string
 )
 
-func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
-	// 初始化私钥
+func (hdxt *HDXT) Init(dbName string, randomKey bool, mongoURI ...string) error {
+	// Initialize private keys
 	var err error
 	if randomKey {
-		// 生成4个16字节长度的随机私钥
 		keyLen := 16
 		hdxt.Mitra.Key = make([]byte, keyLen)
 		if _, err := rand.Read(hdxt.Mitra.Key); err != nil {
-			log.Fatal("Error generating random key:", err)
+			return fmt.Errorf("generate Mitra key: %w", err)
 		}
 		for i := 0; i < 3; i++ {
 			key := make([]byte, keyLen)
 			if _, err := rand.Read(key); err != nil {
-				log.Fatal("Error generating random keys:", err)
+				return fmt.Errorf("generate Auhme key %d: %w", i, err)
 			}
 			hdxt.Auhme.Keys[i] = key
 		}
 	} else {
-		// 读取私钥
+		// Read private keys
 		// hdxt.Mitra.Key, hdxt.Auhme.Keys, err = utils.HdxtReadKeys("./cmd/HDXT/configs/keys.txt")
 		// if err != nil {
 		// 	log.Fatal("Error reading keys:", err)
@@ -84,31 +83,29 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 		hdxt.Auhme.Keys[2] = []byte("0123456789123456")
 	}
 
-	// 连接MongoDB
-	hdxt.PlaintextDB, err = Database.MongoDBSetup(dbName)
+	// Connect to MongoDB
+	hdxt.PlaintextDB, err = Database.MongoDBSetup(dbName, mongoURI...)
 	if err != nil {
-		log.Fatal("Error initializing PlaintextDB:", err)
+		return fmt.Errorf("connect to MongoDB: %w", err)
 	}
 
-	// 获取keyword数量
 	universeKeywords, err = Database.GetUniqueKeywords(hdxt.PlaintextDB)
 	if err != nil {
-		log.Fatal("Error getting universeKeywords:", err)
+		return fmt.Errorf("get unique keywords: %w", err)
 	}
 	universeKeywords = utils.RemoveDuplicates(universeKeywords)
 	universeKeywordsNums = len(universeKeywords)
 
-	// 获取id数量
 	universeIDs, err = Database.GetUniqueIDs(hdxt.PlaintextDB)
 	if err != nil {
-		log.Fatal("Error getting universeIDs:", err)
+		return fmt.Errorf("get unique IDs: %w", err)
 	}
 	universeIDs = utils.RemoveDuplicates(universeIDs)
 
-	// 初始化FileCnt
+	// Initialize FileCnt
 	hdxt.Mitra.FileCnt = make(map[string]int, universeKeywordsNums)
 
-	// 初始化Auhme
+	// Initialize Auhme
 	hdxt.Auhme.Deltas = &Delta{cnt: 0, t: make(map[string]int), delta: 0, s: make([]string, 0)}
 
 	hdxt.MitraCipherList = make(map[string]string)
@@ -118,31 +115,29 @@ func (hdxt *HDXT) Init(dbName string, randomKey bool) error {
 }
 
 func (hdxt *HDXT) SetupPhase() error {
-	// 获取MongoDB数据库
+	// Get the MongoDB database
 	plaintextDB := hdxt.PlaintextDB
 	defer plaintextDB.Client().Disconnect(context.Background())
 
-	// 初始化
+	// Initialize
 	setupTimeList := make([]time.Duration, 0, 1000000)
 
-	// 从MongoDB数据库中获取名为"id_keywords"的集合
+	// Get the collection named "id_keywords" from the MongoDB database
 	collection := plaintextDB.Collection("id_keywords")
 
-	// 创建一个游标，设置不超时并每次获取3000条记录
+	// Create a cursor with no timeout and a batch size of 3000
 	ctx := context.TODO()
 	opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(1000)
 	cur, err := collection.Find(ctx, bson.D{}, opts)
 	if err != nil {
-		log.Fatal("Error getting collection:", err)
+		return fmt.Errorf("find id_keywords: %w", err)
 	}
 
-	// 关闭游标
 	defer cur.Close(ctx)
 
-	// 读取游标中的所有记录
 	var idKeywords []bson.M
 	if err = cur.All(ctx, &idKeywords); err != nil {
-		log.Fatal("Error getting keywordIds:", err)
+		return fmt.Errorf("read cursor: %w", err)
 	}
 
 	// Setup Phase
@@ -238,16 +233,16 @@ func (hdxt *HDXT) SetupPhase() error {
 	// save to file
 	resultpath = filepath.Join("result", "Update", "HDXT", fmt.Sprintf("%s.csv", saveTime.Format("2006-01-02_15-04-05")))
 
-	// 定义结果表头
+	// Define the result header
 	resultHeader = []string{"id", "volume", "addTime"}
 
-	// 将结果数据整理成表格形式
+	// Organize result data into tabular form
 	resultData = make([][]string, len(idList))
 	for i, id := range idList {
 		resultData[i] = []string{id, strconv.Itoa(volumeList[i]), strconv.Itoa(int(setupTimeList[i].Microseconds()))}
 	}
 
-	// 将结果写入文件
+	// Write results to file
 	err = utils.WriteResultToCSV(resultpath, resultHeader, resultData)
 	if err != nil {
 		log.Println("Error writing result to file:", err)
@@ -363,8 +358,8 @@ func (hdxt *HDXT) Encrypt(id string, keywords []string, operation Operation) (ti
 func (hdxt *HDXT) EditPair(id, keyword string, operation Operation) (*UTok, error) {
 	t, delta, s := hdxt.Auhme.Deltas.t, hdxt.Auhme.Deltas.delta, hdxt.Auhme.Deltas.s
 	if len(t)+1 >= delta {
-		// 分批处理，每次处理一部分关键词和ID
-		batchSize := 1000 // 根据实际情况调整
+		// Process in batches, handling a subset of keywords and IDs at a time
+		batchSize := 1000 // adjust based on actual conditions
 		s = make([]string, 0)
 		
 		for i := 0; i < len(universeKeywords); i += batchSize {
@@ -402,7 +397,7 @@ func (hdxt *HDXT) EditPair(id, keyword string, operation Operation) (*UTok, erro
 	}
 }
 
-// 辅助函数处理批量数据
+// Helper function to process a batch of data
 func processBatch(hdxt *HDXT, keywords []string, ids []string) []string {
 	result := make([]string, 0, len(keywords)*len(ids))
 	for _, keyword := range keywords {
@@ -417,11 +412,11 @@ func processBatch(hdxt *HDXT, keywords []string, ids []string) []string {
 	return result
 }
 
-func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
+func (hdxt *HDXT) SearchPhase(tableName, fileName string) error {
 	fileName = "./cmd/HDXT/configs/" + fileName
 	keywordsList := utils.QueryKeywordsFromFile(fileName)
 
-	// 初始化结果列表
+	// Initialize result list
 	resultList := make([][]string, 0, len(keywordsList)+1)
 	clientSearchTime := make([]time.Duration, 0, len(keywordsList)+1)
 	serverTimeList := make([]time.Duration, 0, len(keywordsList)+1)
@@ -431,12 +426,12 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 	w1List := make([]int, 0, len(keywordsList)+1)
 	w2List := make([]int, 0, len(keywordsList)+1)
 
-	// 循环搜索
+	// Search loop
 	for _, keywords := range keywordsList {
 		clientTimeTotal := time.Duration(0)
 		serverTimeTotal := time.Duration(0)
-		// 单关键词搜索, mitra part
-		// 选择查询频率最低的关键字
+		// Single-keyword search, mitra part
+		// Select the keyword with the lowest query frequency
 		volume := 0
 		totalStart := time.Now()
 		counter, w1 := math.MaxInt64, keywords[0]
@@ -451,18 +446,17 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 		w2List = append(w2List, hdxt.FileCnt[keywords[1]])
 		trapdoorTime, serverTime, w1Ids, err := hdxt.SearchOneKeyword(w1)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 		clientTimeTotal += trapdoorTime
 		serverTimeTotal += serverTime
 
-		// auhme part
-		// client search step 1
+		// auhme part — client search step 1
 		q := utils.RemoveElement(keywords, w1)
 		start := time.Now()
 		dkList, err := AuhmeClientSearchStep1(hdxt, w1Ids, q)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 		clientTimeTotal += time.Since(start)
 		volume += CalculateDkListSize(dkList)
@@ -480,7 +474,7 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 		totalTime := time.Since(totalStart)
 		volume += CalculatesIdListSize(sIdList)
 
-		// 将结果添加到结果列表
+		// Add results to the result list
 		resultList = append(resultList, sIdList)
 		clientSearchTime = append(clientSearchTime, clientTimeTotal)
 		serverTimeList = append(serverTimeList, serverTimeTotal)
@@ -489,27 +483,27 @@ func (hdxt *HDXT) SearchPhase(tableName, fileName string) {
 		volumeList = append(volumeList, volume)
 	}
 
-	// 设置结果文件的路径和名称
+	// Set the path and name of the result file
 	resultpath := filepath.Join("result", "Search", "HDXT", tableName, fmt.Sprintf("%s.csv", time.Now().Format("2006-01-02_15-04-05")))
 
-	// 定义结果表头
+	// Define the result header
 	resultHeader := []string{"keyword", "clientTime", "serverTime", "totalTime", "resultLength", "payloadSize", "w1", "w2"}
 
-	// 将结果数据整理成表格形式
+	// Organize result data into tabular form
 	resultData := make([][]string, len(resultList))
 	for i, keywords := range keywordsList {
 		resultData[i] = []string{strings.Join(keywords, "#"), strconv.Itoa(int(clientSearchTime[i].Microseconds())), strconv.Itoa(int(serverTimeList[i].Microseconds())), strconv.Itoa(int(totalTimeList[i].Microseconds())), strconv.Itoa(resultLengthList[i]), strconv.Itoa(volumeList[i]), strconv.Itoa(w1List[i]), strconv.Itoa(w2List[i])}
 	}
 
-	// 将结果写入文件
 	err := utils.WriteResultToCSV(resultpath, resultHeader, resultData)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("write results CSV: %w", err)
 	}
+	return nil
 }
 
 func (hdxt *HDXT) SearchOneKeyword(keyword string) (time.Duration, time.Duration, []string, error) {
-	// 生成陷门
+	// Generate trapdoor
 	start := time.Now()
 	tList, err := MitraGenTrapdoor(hdxt, keyword)
 	if err != nil {

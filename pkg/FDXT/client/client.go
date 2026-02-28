@@ -20,14 +20,15 @@ func NewFDXTClient(serverAddr string) (*FDXTClient, error) {
 		return nil, err
 	}
 	var fdxt FDXT.FDXT
-	Init(&fdxt, "Crime_USENIX_REV")
+	Init(&fdxt)
 	return &FDXTClient{
 		fdxt:   &fdxt,
 		client: pb.NewFDXTServiceClient(conn),
 	}, nil
 }
 
-func Init(f *FDXT.FDXT, s string) {
+func Init(f *FDXT.FDXT) {
+	// Fixed keys for reproducible benchmarking as used in the paper.
 	f.Keys[0] = []byte("0123456789123456")
 	f.Keys[1] = []byte("0123456789123456")
 	f.Keys[2] = []byte("0123456789123456")
@@ -48,14 +49,14 @@ func (f *FDXTClient) Update(cdbXtag map[string]string, cdbTset map[string]*FDXT.
 	if err != nil {
 		return err
 	}
-	// 分批发送数据
+	// Send data in batches
 	const batchSize = 1000
 	count := 0
 	batch := &pb.UpdateRequest{
 		CDBXtag: make(map[string]string),
 		CDBTset: make(map[string]*pb.TsetValue),
 	}
-	// 发送Xtag
+	// Send Xtag
 	for k, v := range cdbXtag {
 		batch.CDBXtag[k] = v
 		count++
@@ -70,7 +71,7 @@ func (f *FDXTClient) Update(cdbXtag map[string]string, cdbTset map[string]*FDXT.
 			}
 		}
 	}
-	// 发送Tset
+	// Send Tset
 	for k, v := range cdbTset {
 		batch.CDBTset[k] = &pb.TsetValue{
 			Val:   v.Val,
@@ -88,7 +89,7 @@ func (f *FDXTClient) Update(cdbXtag map[string]string, cdbTset map[string]*FDXT.
 			}
 		}
 	}
-	// 发送最后一批数据并关闭流
+	// Send the last batch of data and close the stream
 	if count > 0 {
 		if err := stream.Send(batch); err != nil {
 			return err

@@ -30,7 +30,7 @@ func (s *HDXTServer) Setup(stream pb.HDXTService_SetupServer) error {
 	for {
         req, err := stream.Recv()
         if err == io.EOF {
-            // 流结束，返回结果
+            // Stream ended, return result
 			s.mitraCipherList = mitraCipherMap
 			s.auhmeCipherList = auhmeCipherMap
             return stream.SendAndClose(&pb.SetupResponse{})
@@ -39,7 +39,7 @@ func (s *HDXTServer) Setup(stream pb.HDXTService_SetupServer) error {
             return err
         }
 
-        // 合并每个批次的 map
+        // Merge each batch's map
         for k, v := range req.MitraCiphers {
             mitraCipherMap[k] = v
         }
@@ -51,14 +51,14 @@ func (s *HDXTServer) Setup(stream pb.HDXTService_SetupServer) error {
 
 func (s *HDXTServer) Update(ctx context.Context, req *pb.UpdateRequest) (*pb.UpdateResponse, error) {
 	for _, tok := range req.UpdateTokens {
-		// 实现 auhmeApplyUpd 逻辑
+		// Implement auhmeApplyUpd logic
 		auhmeApplyUpd(s.auhmeCipherList, tok)
 	}
 	return &pb.UpdateResponse{Success: true}, nil
 }
 
 func (s *HDXTServer) SearchOneKeyword(ctx context.Context, req *pb.SearchOneKeywordRequest) (*pb.SearchOneKeywordResponse, error) {
-	// 实现 mitraServerSearch 逻辑
+	// Implement mitraServerSearch logic
 	result := make([]string, 0, len(req.Trapdoors))
 	for _, t := range req.Trapdoors {
 		if _, ok := s.mitraCipherList[t]; ok {

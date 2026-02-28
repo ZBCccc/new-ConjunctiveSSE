@@ -2,5 +2,6 @@
     "db": "Crime_USENIX_REV_toy",
     "phase": "cs",
     "group": "keywords_2n_generated_toy.txt",
-    "del_rate": 0
+    "del_rate": 0,
+    "mongo_uri": "mongodb://localhost:27017"
 }

@@ -30,11 +30,11 @@ func (fdxt *FDXT) ClientSearchStep1(w1 string, q []string) ([]*TKL, []string, []
 		}
 		srch, updt := fdxt.Count[w].srch, fdxt.Count[w].updt
 		for i := updt; i >= 1; i-- {
-			// 预计算总长度
+			// Pre-calculate total length
 			msgLen := len(w) + len(big.NewInt(int64(srch)).Bytes()) + len(big.NewInt(int64(i)).Bytes()) + 1
 			msg := make([]byte, 0, msgLen)
 
-			// 一次性构建消息
+			// Build message in one go
 			msg = append(msg, []byte(w)...)
 			msg = append(msg, big.NewInt(int64(srch)).Bytes()...)
 			msg = append(msg, big.NewInt(int64(i)).Bytes()...)

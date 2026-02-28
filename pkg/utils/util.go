@@ -39,7 +39,7 @@ func CalculatePayloadSize(seopList []SEOp) int {
 	return size
 }
 
-// BytesXORWithOp 将MAC值的前31个字节与id异或，并将MAC的最后一个字节与op异或
+// BytesXORWithOp XORs the first 31 bytes of the MAC with id, and XORs the last byte of the MAC with op
 func BytesXORWithOp(mac, id []byte, op int) ([]byte, error) {
 	result := make([]byte, len(mac))
 	copy(result, mac)
@@ -47,17 +47,17 @@ func BytesXORWithOp(mac, id []byte, op int) ([]byte, error) {
 		return nil, fmt.Errorf("MAC length must be 32 bytes")
 	}
 
-	// 确保id的长度为小于等于31字节
+	// Ensure id length is at most 31 bytes
 	if len(id) > 31 {
 		return nil, fmt.Errorf("id length must be less than or equal to 31 bytes")
 	}
 
-	// 执行异或操作
+	// Perform XOR operation
 	for i := 0; i < len(id); i++ {
 		result[i] = mac[i] ^ id[i]
 	}
 
-	// 将MAC的最后一个字节与op异或
+	// XOR the last byte of the MAC with op
 	if op != 0 && op != 1 {
 		return nil, fmt.Errorf("op must be 0 or 1")
 	}
@@ -66,9 +66,9 @@ func BytesXORWithOp(mac, id []byte, op int) ([]byte, error) {
 	return result, nil
 }
 
-// RemoveElement 删除slice中的特定元素
+// RemoveElement removes a specific element from a slice
 func RemoveElement(slice []string, target string) []string {
-	// 遍历slice，删除target元素
+	// Iterate over the slice and remove the target element
 	result := make([]string, len(slice))
 	copy(result, slice)
 	for i, v := range result {
@@ -80,15 +80,15 @@ func RemoveElement(slice []string, target string) []string {
 	return result
 }
 
-// WriteResultToCSV 将结果写入CSV文件
+// WriteResultToCSV writes results to a CSV file
 func WriteResultToCSV(filePath string, headers []string, data [][]string) error {
-	// 创建文件，如果文件所在的目录不存在则创建
+	// Create the file; if the directory does not exist, create it first
 	dir := filepath.Dir(filePath)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		os.MkdirAll(dir, 0755)
 	}
 
-	// 创建文件
+	// Create the file
 	file, err := os.Create(filePath)
 	if err != nil {
 		return err
@@ -98,13 +98,13 @@ func WriteResultToCSV(filePath string, headers []string, data [][]string) error 
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
 
-	// 写入表头
+	// Write headers
 	if err := writer.Write(headers); err != nil {
 		fmt.Println("Error writing headers:", err)
 		return err
 	}
 
-	// 写入数据
+	// Write data
 	for _, record := range data {
 		if err := writer.Write(record); err != nil {
 			fmt.Println("Error writing data:", err)
@@ -115,15 +115,15 @@ func WriteResultToCSV(filePath string, headers []string, data [][]string) error 
 	return nil
 }
 
-// WriteResultToFile 将结果写入文件
+// WriteResultToFile writes results to a file
 func WriteResultToFile(filePath string, data [][]string) error {
-	// 创建文件，如果文件所在的目录不存在则创建
+	// Create the file; if the directory does not exist, create it first
 	dir := filepath.Dir(filePath)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		os.MkdirAll(dir, 0755)
 	}
 
-	// 创建文件
+	// Create the file
 	file, err := os.Create(filePath)
 	if err != nil {
 		return err
@@ -143,7 +143,7 @@ func WriteResultToFile(filePath string, data [][]string) error {
 }
 
 func BytesXOR(b1, b2 []byte) []byte {
-	// 判断最长的切片
+	// Determine the longer slice
 	var longer, shorter []byte
 	if len(b1) > len(b2) {
 		longer, shorter = b1, b2
@@ -154,7 +154,7 @@ func BytesXOR(b1, b2 []byte) []byte {
 	result := make([]byte, len(longer))
 	copy(result, longer)
 
-	// 将较短的切片异或到较长切片中
+	// XOR the shorter slice into the longer slice
 	for i := 0; i < len(shorter); i++ {
 		result[i] ^= shorter[i]
 	}
@@ -183,7 +183,7 @@ func HdxtReadKeys(filePath string) ([]byte, [3][]byte, error) {
 	for i := 0; i < 3; i++ {
 		line := scanner.Text()
 		auhmeKeys[i], err = base64.StdEncoding.DecodeString(line)
-		// 将auhmeKeys[i]哈希为16字节
+		// Hash auhmeKeys[i] to 16 bytes
 		hash := sha256.Sum256(auhmeKeys[i])
 		auhmeKeys[i] = hash[:16]
 		if err != nil {
@@ -194,22 +194,17 @@ func HdxtReadKeys(filePath string) ([]byte, [3][]byte, error) {
 	return mitraKey, auhmeKeys, nil
 }
 
-// RemoveDuplicates 去除切片中的重复元素
+// RemoveDuplicates removes duplicate elements from a slice
 func RemoveDuplicates(intSlice []string) []string {
 	return slice.Unique(intSlice)
 }
 
+// QueryKeywordsFromFile reads a conjunctive query file where each line is a
+// set of keywords separated by '#'. Example line: "keyword1#keyword2#keyword3"
 func QueryKeywordsFromFile(fileName string) [][]string {
-	// 读取待搜索的连接关键词文件，文件格式为：
-	// 每一行都是关键词的集合，关键词之间用#隔开
-	// 例如：
-	// 关键词1#关键词2#关键词3
-	// 关键词4#关键词5
-	// 关键词6
-	// 读取待搜索的关键词文件
 	file, err := os.Open(fileName)
 	if err != nil {
-		log.Fatal("无法打开文件:", err)
+		log.Fatal("cannot open query file: ", err)
 	}
 	defer file.Close()
 
@@ -223,28 +218,28 @@ func QueryKeywordsFromFile(fileName string) [][]string {
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Fatal("读取文件时出错:", err)
+		log.Fatal("error reading query file: ", err)
 	}
 
 	return keywordsList
 }
 
-// SaveFileCntToFile 保存 filecnt 到文件
+// SaveFileCntToFile saves filecnt to a file
 func SaveFileCntToFile(fileCnt map[string]int, filename string) error {
-	// 创建文件，如果所在目录不存在，则先创建目录，再创建文件
+	// Create the file; if the directory does not exist, create it first
 	dir := filepath.Dir(filename)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		os.MkdirAll(dir, 0755)
 	}
 
-	// 创建文件
+	// Create the file
 	file, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	// 将 fileCnt 写入Json文件
+	// Write fileCnt to a JSON file
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(fileCnt)

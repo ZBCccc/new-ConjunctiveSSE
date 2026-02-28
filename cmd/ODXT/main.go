@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-// Config 定义一个类型
 type Config struct {
-	Db               string `json:"db"`
-	Phase            string `json:"phase"`
-	Group            string `json:"group"`
-	DelRate          int    `json:"del_rate"`
+	Db       string `json:"db"`
+	Phase    string `json:"phase"`
+	Group    string `json:"group"`
+	DelRate  int    `json:"del_rate"`
+	MongoURI string `json:"mongo_uri"`
 }
 
 func main() {
@@ -49,7 +49,7 @@ func main() {
 
 func TestODXT(cfg Config) error {
 	var odxt ODXT.ODXT
-	err := odxt.DBSetup(cfg.Db, false)
+	err = odxt.DBSetup(cfg.Db, false, cfg.MongoURI)
 	if err != nil {
 		fmt.Println("DBSetup error", err)
 		return err

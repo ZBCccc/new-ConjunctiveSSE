@@ -25,20 +25,33 @@ type Client struct {
 	iv            []byte
 }
 
-// NewClient creates a new Client.
+// NewClient creates a new Client with fixed benchmark keys.
+// These keys are intentionally hardcoded for reproducible benchmarking as used in the paper.
+// For production use, generate keys with crypto/rand and use NewClientWithKeys.
 func NewClient() *Client {
+	return NewClientWithKeys(
+		[]byte("0123456789123456"),
+		[]byte("0123456789123456"),
+		[]byte("0123456789123456"),
+		[]byte("0123456789123456"),
+		[]byte("0123456789123456"),
+	)
+}
+
+// NewClientWithKeys creates a new Client with caller-supplied 16-byte keys.
+// k, kx, ki, kz are PRF keys; iv is the AES-CBC initialization vector.
+func NewClientWithKeys(k, kx, ki, kz, iv []byte) *Client {
 	client := &Client{
 		TSet: sseclient.NewSSEClient(),
 		XSet: sseclient.NewSSEClient(),
 		CT:   make(map[string]int),
-		k:    []byte("0123456789123456"),
-		kx:   []byte("0123456789123456"),
-		ki:   []byte("0123456789123456"),
-		kz:   []byte("0123456789123456"),
-		iv:   []byte("0123456789123456"),
+		k:    k,
+		kx:   kx,
+		ki:   ki,
+		kz:   kz,
+		iv:   iv,
 	}
 
-	// 检查 TSet 和 XSet 是否被正确初始化
 	if client.TSet == nil || client.XSet == nil {
 		log.Fatal("Failed to initialize SSEClient")
 	}
@@ -168,20 +181,21 @@ func (c *Client) Search(keywords []string) ([]string, time.Duration, time.Durati
 	return ResInd, clientTime, serverTime, serverAuraTime
 }
 
-// 新增辅助函数
+// serializeData encodes e, y, and counter into a single byte slice.
+// Layout: 8 bytes for eLen, 8 bytes for yLen, eLen bytes for e, yLen bytes for y, 8 bytes for counter.
 func serializeData(e []byte, y *pbc.Element, counter int) []byte {
-	// 为长度信息预留空间
+	// Reserve space for length fields
 	eLen := len(e)
 	yBytes := y.Bytes()
 	yLen := len(yBytes)
 
-	result := make([]byte, 8+8+eLen+yLen+8) // 8字节分别存储eLen和yLen，8字节存储counter
+	result := make([]byte, 8+8+eLen+yLen+8) // 8 bytes each for eLen and yLen, 8 bytes for counter
 
-	// 写入长度信息
+	// Write length fields
 	binary.BigEndian.PutUint64(result[0:8], uint64(eLen))
 	binary.BigEndian.PutUint64(result[8:16], uint64(yLen))
 
-	// 写入数据
+	// Write data
 	copy(result[16:16+eLen], e)
 	copy(result[16+eLen:16+eLen+yLen], yBytes)
 	binary.BigEndian.PutUint64(result[16+eLen+yLen:], uint64(counter))

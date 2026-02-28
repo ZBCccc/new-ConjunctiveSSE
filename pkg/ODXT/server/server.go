@@ -42,7 +42,7 @@ func (s *ODXTServer) Update(stream pb.ODXTService_UpdateServer) error {
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
-			// 流结束，返回结果
+		// Stream ends, return result
 			s.TSet = tSet
 			s.XSet = xSet
 			return stream.SendAndClose(&pb.UpdateResponse{})
@@ -51,7 +51,7 @@ func (s *ODXTServer) Update(stream pb.ODXTService_UpdateServer) error {
 			return err
 		}
 
-		// 合并每个批次的 map
+	// Merge each batch's map
 		for k, v := range req.TSet {
 			tSet[k] = &ODXT.TsetValue{
 				Val:   v.Val,
@@ -74,7 +74,7 @@ func (s *ODXTServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Sea
 		}
 	}
 	sEOpList := make([]utils.SEOp, len(stokenList))
-	// 搜索数据
+	// Search data
 	var wg sync.WaitGroup
 	for j, stoken := range stokenList {
 		wg.Add(1)
@@ -82,11 +82,11 @@ func (s *ODXTServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Sea
 			defer wg.Done()
 			cnt := 1
 			val, alpha := s.TSet[stoken].Val, s.TSet[stoken].Alpha
-			// 遍历 xtokenList
+			// Iterate xtokenList
 			var mu sync.Mutex
 			var wgg sync.WaitGroup
 			for _, xtoken := range xtokenList[j] {
-				// 判断 xtag 是否匹配
+				// Check if xtag matches
 				wgg.Add(1)
 				go func (xtoken *pbc.Element)  {
 					defer wgg.Done()

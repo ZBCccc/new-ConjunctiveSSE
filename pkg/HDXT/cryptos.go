@@ -12,34 +12,34 @@ import (
 )
 
 func PrfF(key, message []byte) ([]byte, error) {
-    // 检查密钥长度是否为16字节(128位)
+    // Check if key length is 16 bytes (128 bits)
     if len(key) != 16 {
         return nil, errors.New("key must be 16 bytes for AES-128")
     }
 
-    // 1. 首先使用AES-ECB-128
+    // 1. First use AES-ECB-128
     cipher, err := aes.NewCipher(key)
     if err != nil {
         return nil, err
     }
 
-    // 确保消息长度是16字节的倍数
+    // Ensure message length is a multiple of 16 bytes
     paddedMessage := pkcs7Padding(message, 16)
     encrypted := make([]byte, len(paddedMessage))
 
-    // 实现ECB模式加密
+    // Implement ECB mode encryption
     for i := 0; i < len(paddedMessage); i += 16 {
         cipher.Encrypt(encrypted[i:i+16], paddedMessage[i:i+16])
     }
 
-    // 2. 然后进行SHA-256哈希
+    // 2. Then perform SHA-256 hash
     hash := sha256.Sum256(encrypted)
     
     return hash[:], nil
 }
 
 
-// PKCS7填充
+// PKCS7 padding
 func pkcs7Padding(data []byte, blockSize int) []byte {
     padding := blockSize - len(data)%blockSize
     padText := bytes.Repeat([]byte{byte(padding)}, padding)
@@ -244,17 +244,17 @@ func auhmeApplyUpd(hdxt *HDXT, utok *UTok) {
 }
 
 func xor(s1, s2 string) string {
-	// 将字符串转换为字节切片
+	// Convert string to byte slice
 	b1 := []byte(s1)
 	b2 := []byte(s2)
 
-	// 获取较短的长度
+	// Get the shorter length
 	minLen := len(b1)
 	if len(b2) < minLen {
 		minLen = len(b2)
 	}
 
-	// 使用较长的切片作为结果
+	// Use the longer slice as result
 	var result []byte
 	if len(b1) > len(b2) {
 		result = make([]byte, len(b1))
@@ -264,7 +264,7 @@ func xor(s1, s2 string) string {
 		copy(result, b2)
 	}
 
-	// 对最小长度的部分进行异或操作
+	// XOR the part with minimum length
 	for i := 0; i < minLen; i++ {
 		result[i] = b1[i] ^ b2[i]
 	}

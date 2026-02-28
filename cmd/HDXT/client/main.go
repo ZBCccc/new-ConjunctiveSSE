@@ -5,6 +5,7 @@ import (
 	"ConjunctiveSSE/pkg/HDXT/client"
 	"ConjunctiveSSE/pkg/utils"
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -18,7 +19,12 @@ import (
 )
 
 func main() {
-    c, err := client.NewHDXTClient("10.12.188.9:50051")
+	serverAddr := flag.String("server", "localhost:50051", "gRPC server address (host:port)")
+	dbName := flag.String("db", "Crime_USENIX_REV", "MongoDB database name")
+	mongoURI := flag.String("mongo", "mongodb://localhost:27017", "MongoDB connection URI")
+	flag.Parse()
+
+	c, err := client.NewHDXTClient(*serverAddr, *dbName, *mongoURI)
     if err != nil {
         log.Fatalf("failed to create client: %v", err)
     }
@@ -152,7 +158,7 @@ func main() {
 
 	// 3. Search Phase
 	log.Println("Search Phase Start")
-	SearchPhase(c, "Crime_USENIX_REV", "keywords_2.txt")
+	SearchPhase(c, *dbName, "keywords_2.txt")
 }
 
 func SearchPhase(c *client.HDXTClient, tableName, fileName string) {

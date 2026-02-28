@@ -33,7 +33,7 @@ func TestGToPower(t *testing.T) {
 		t.Error("GToPower returned zero element")
 	}
 
-	// 验证 gPowN 是否等于 g1^n
+	// Verify gPowN equals g1^n
 	expected := pairing.NewG1().PowZn(g1, zr)
 	if !gPowN.Equals(expected) {
 		t.Error("GToPower result is incorrect")
@@ -51,7 +51,7 @@ func TestGToPower2(t *testing.T) {
 		t.Error("GToPower2 returned zero element")
 	}
 
-	// 验证 gPowNM 是否等于 g1^(n*m)
+	// Verify gPowNM equals g1^(n*m)
 	expected := pairing.NewG1().PowZn(g1, pairing.NewZr().Mul(zrN, zrM))
 	if !gPowNM.Equals(expected) {
 		t.Error("GToPower2 result is incorrect")
@@ -66,7 +66,7 @@ func TestZrDiv(t *testing.T) {
 
 	zrDivNM := ZrDiv(zrN, zrM)
 
-	// 验证 zrDivNM 是否等于 n/m
+	// Verify zrDivNM equals n/m
 	expected := pairing.NewZr().Div(zrN, zrM)
 	if !zrDivNM.Equals(expected) {
 		t.Error("ZrDiv result is incorrect")
@@ -81,7 +81,7 @@ func TestZrDiv(t *testing.T) {
 
 // 	zrPowNM := Pow(zrN, zrM)
 
-// 	// 验证 zrPowNM 是否等于 n^m
+// 	// Verify zrPowNM equals n^m
 // 	expected := pairing.NewZr().PowZn(zrN, zrM)
 // 	if !zrPowNM.Equals(expected) {
 // 		t.Error("Pow result is incorrect")
@@ -102,7 +102,7 @@ func TestBytesToElement(t *testing.T) {
 }
 
 func ComputeAlpha(Ky, Kz, id []byte, op int, wWc []byte) (*pbc.Element, *pbc.Element, error) {
-	// 计算 PRF_p(Ky, id||op)
+	// Compute PRF_p(Ky, id||op)
 	idOp := append(id, byte(op))
 
 	alpha1, err := PrfToZr(Ky, idOp)
@@ -110,7 +110,7 @@ func ComputeAlpha(Ky, Kz, id []byte, op int, wWc []byte) (*pbc.Element, *pbc.Ele
 		return nil, nil, err
 	}
 
-	// 计算 PRF_p(Kz, w||wc)
+	// Compute PRF_p(Kz, w||wc)
 	alpha2, err := PrfToZr(Kz, wWc)
 	if err != nil {
 		return nil, nil, err

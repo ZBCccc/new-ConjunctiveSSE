@@ -31,7 +31,7 @@ func init() {
 	g1 = pairing.NewG1().Rand()
 }
 
-// GetPairing 返回全局的 pairing 实例
+// GetPairing returns the global pairing instance
 func GetPairing() *pbc.Pairing {
 	return pairing
 }

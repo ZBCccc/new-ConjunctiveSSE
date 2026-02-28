@@ -20,12 +20,12 @@ type HDXTClient struct {
 	conn   *grpc.ClientConn
 }
 
-func NewHDXTClient(serverAddr string) (*HDXTClient, error) {
-	// 添加 keepalive 参数
+func NewHDXTClient(serverAddr, dbName, mongoURI string) (*HDXTClient, error) {
+	// Add keepalive parameters
 	kacp := keepalive.ClientParameters{
-		Time:                3 * time.Second, // 每10秒发送ping
-		Timeout:             2 * time.Second, // ping超时时间
-		PermitWithoutStream: true,            // 允许在没有活动流的情况下发送ping
+		Time:                3 * time.Second, // Send ping every 10 seconds
+		Timeout:             2 * time.Second, // Ping timeout duration
+		PermitWithoutStream: true,            // Allow sending ping without active stream
 	}
 	conn, err := grpc.NewClient(
 		serverAddr,
@@ -42,7 +42,7 @@ func NewHDXTClient(serverAddr string) (*HDXTClient, error) {
 		return nil, err
 	}
 	var hdxt HDXT.HDXT
-	hdxt.Init("Crime_USENIX_REV", false)
+	hdxt.Init(dbName, false, mongoURI)
 	return &HDXTClient{
 		hdxt:   &hdxt,
 		client: pb.NewHDXTServiceClient(conn),
@@ -62,16 +62,16 @@ func (c *HDXTClient) Close() error {
 }
 
 func (c *HDXTClient) Setup(mitraCipherList map[string]string, auhmeCipherList map[string]string) error {
-	// 检查连接状态
+	// Check connection state
 	state := c.conn.GetState()
 	log.Printf("Connection state before Setup: %v", state)
-	// 发送密文到服务器
+	// Send ciphertext to server
 	stream, err := c.client.Setup(context.Background())
 	if err != nil {
 		return err
 	}
 
-	// 分批发送数据
+	// Send data in batches
 	const batchSize = 1000
 	count := 0
 	batch := &pb.SetupRequest{
@@ -79,7 +79,7 @@ func (c *HDXTClient) Setup(mitraCipherList map[string]string, auhmeCipherList ma
 		AuhmeCiphers: make(map[string]string),
 	}
 
-	// 发送 MitraCiphers
+	// Send MitraCiphers
 	for k, v := range mitraCipherList {
 		batch.MitraCiphers[k] = v
 		count++
@@ -96,7 +96,7 @@ func (c *HDXTClient) Setup(mitraCipherList map[string]string, auhmeCipherList ma
 		}
 	}
 
-	// 发送 AuhmeCiphers
+	// Send AuhmeCiphers
 	for k, v := range auhmeCipherList {
 		batch.AuhmeCiphers[k] = v
 		count++
@@ -113,7 +113,7 @@ func (c *HDXTClient) Setup(mitraCipherList map[string]string, auhmeCipherList ma
 		}
 	}
 
-	// 发送最后一批数据并关闭流
+	// Send final batch data and close stream
 	if count > 0 {
 		if err := stream.Send(batch); err != nil {
 			return err
@@ -130,13 +130,13 @@ func (c *HDXTClient) Setup(mitraCipherList map[string]string, auhmeCipherList ma
 }
 
 func (c *HDXTClient) Update(id string, keywords []string, operation HDXT.Operation) error {
-	// 本地生成密文
+	// Generate ciphertext locally
 	_, tokList, err := c.hdxt.Encrypt(id, keywords, operation)
 	if err != nil {
 		return err
 	}
 
-	// 发送密文到服务器
+	// Send ciphertext to server
 	_, err = c.client.Update(context.Background(), &pb.UpdateRequest{
 		UpdateTokens: convertToPbUTok(tokList),
 	})
@@ -144,7 +144,7 @@ func (c *HDXTClient) Update(id string, keywords []string, operation HDXT.Operati
 }
 
 func (c *HDXTClient) SearchOneKeyword(keyword string) ([]string, error) {
-	// 生成陷门
+	// Generate trapdoor
 	tList, err := HDXT.MitraGenTrapdoor(c.hdxt, keyword)
 	if err != nil {
 		return nil, err
@@ -163,8 +163,8 @@ func (c *HDXTClient) SearchOneKeyword(keyword string) ([]string, error) {
 }
 
 func (c *HDXTClient) Search(keywords []string) ([]string, error) {
-	// 单关键词搜索, mitra part
-	// 选择查询频率最低的关键字
+	// Single keyword search, mitra part
+	// Select the keyword with the lowest query frequency
 	counter, w1 := math.MaxInt64, keywords[0]
 	for _, w := range keywords {
 		num := c.hdxt.FileCnt[w]
@@ -186,7 +186,7 @@ func (c *HDXTClient) Search(keywords []string) ([]string, error) {
 		return nil, err
 	}
 
-	// 发送搜索请求
+	// Send search request
 	resp, err := c.client.Search(context.Background(), &pb.SearchRequest{
 		DkList: convertToPbDK(dkList),
 	})

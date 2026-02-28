@@ -9,12 +9,13 @@ import (
 	"time"
 )
 
-// Config 定义一个类型
+// Config defines the benchmark configuration.
 type Config struct {
-	Db               string `json:"db"`
-	Phase            string `json:"phase"`
-	Group            string `json:"group"`
-	DelRate          int    `json:"del_rate"`
+	Db       string `json:"db"`
+	Phase    string `json:"phase"`
+	Group    string `json:"group"`
+	DelRate  int    `json:"del_rate"`
+	MongoURI string `json:"mongo_uri"`
 }
 
 func main() {
@@ -48,7 +49,7 @@ func main() {
 func TestHDXT(cfg Config) error {
 	var hdxt HDXT.HDXT
 	
-	if err := hdxt.Init(cfg.Db, false); err != nil {
+	if err := hdxt.Init(cfg.Db, false, cfg.MongoURI); err != nil {
 		log.Println("DBSetup error", err)
 		return err
 	}
@@ -60,7 +61,10 @@ func TestHDXT(cfg Config) error {
 	}
 	if strings.Contains(cfg.Phase, "s") {
 		t1 := time.Now()
-		hdxt.SearchPhase(cfg.Db, cfg.Group)
+		if err := hdxt.SearchPhase(cfg.Db, cfg.Group); err != nil {
+			log.Println("SearchPhase error:", err)
+			return err
+		}
 		t2 := time.Since(t1)
 		log.Println("SearchPhase time:", t2)
 	}

@@ -1,17 +1,17 @@
 package server
 
 func xor(s1, s2 string) string {
-	// 将字符串转换为字节切片
+	// Convert string to byte slice
 	b1 := []byte(s1)
 	b2 := []byte(s2)
 
-	// 获取较短的长度
+	// Get the shorter length
 	minLen := len(b1)
 	if len(b2) < minLen {
 		minLen = len(b2)
 	}
 
-	// 使用较长的切片作为结果
+	// Use the longer slice as result
 	var result []byte
 	if len(b1) > len(b2) {
 		result = make([]byte, len(b1))
@@ -21,7 +21,7 @@ func xor(s1, s2 string) string {
 		copy(result, b2)
 	}
 
-	// 对最小长度的部分进行异或操作
+	// XOR the part with minimum length
 	for i := 0; i < minLen; i++ {
 		result[i] = b1[i] ^ b2[i]
 	}

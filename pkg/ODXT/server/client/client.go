@@ -25,23 +25,21 @@ func NewODXTClient(serverAddr string) (*ODXTClient, error) {
 		return nil, err
 	}
 	var odxt ODXT.ODXT
-	Init(&odxt, "Crime_USENIX_REV")
+	Init(&odxt)
 	return &ODXTClient{
 		odxt:   &odxt,
 		client: pb.NewODXTServiceClient(conn),
 	}, nil
 }
 
-func Init(o *ODXT.ODXT, dbName string) {
+func Init(o *ODXT.ODXT) {
+	// Fixed keys for reproducible benchmarking as used in the paper.
 	o.Keys[0] = []byte("0123456789123456")
 	o.Keys[1] = []byte("0123456789123456")
 	o.Keys[2] = []byte("0123456789123456")
 	o.Keys[3] = []byte("0123456789123456")
-	// 初始化 UpdateCnt
 	o.UpdateCnt = make(map[string]int)
-	// 初始化 TSet
 	o.TSet = make(map[string]*ODXT.TsetValue)
-	// 初始化 XSet
 	o.XSet = make(map[string]int)
 }
 
@@ -54,7 +52,7 @@ func (c *ODXTClient) GetODXT() *ODXT.ODXT {
 //		c.odxt.UpdateCnt[keyword] = 0
 //	}
 //	for _, id := range ids {
-//		// 本地生成密文
+//		// Generate ciphertext locally
 //		xtag, address, val, alpha := Encrypt(c.odxt, keyword, id, operation)
 //		_, err := c.client.Update(context.Background(), &pb.UpdateRequest{
 //			Xtag:    xtag,
@@ -74,14 +72,14 @@ func (c *ODXTClient) Update(tSet map[string]*ODXT.TsetValue, xSet map[string]int
 	if err != nil {
 		return err
 	}
-	// 分批发送数据
+	// Send data in batches
 	const batchSize = 1000
 	count := 0
 	batch := &pb.UpdateRequest{
 		TSet: make(map[string]*pb.TsetValue),
 		XSet: make(map[string]int64),
 	}
-	// 发送 TSet
+	// Send TSet
 	for k, v := range tSet {
 		batch.TSet[k] = &pb.TsetValue{
 			Val:   v.Val,
@@ -99,7 +97,7 @@ func (c *ODXTClient) Update(tSet map[string]*ODXT.TsetValue, xSet map[string]int
 			count = 0
 		}
 	}
-	// 发送 XSet
+	// Send XSet
 	for k, v := range xSet {
 		batch.XSet[k] = int64(v)
 		count++
@@ -114,7 +112,7 @@ func (c *ODXTClient) Update(tSet map[string]*ODXT.TsetValue, xSet map[string]int
 			count = 0
 		}
 	}
-	// 发送最后一批数据并关闭流
+	// Send final batch data and close stream
 	if count > 0 {
 		if err := stream.Send(batch); err != nil {
 			return err

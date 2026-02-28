@@ -6,6 +6,7 @@ import (
 	"ConjunctiveSSE/pkg/FDXT/client"
 	"ConjunctiveSSE/pkg/utils"
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -19,7 +20,10 @@ import (
 )
 
 func main() {
-	c, err := client.NewFDXTClient("10.12.188.9:50051")
+	serverAddr := flag.String("server", "localhost:50051", "gRPC server address (host:port)")
+	flag.Parse()
+
+	c, err := client.NewFDXTClient(*serverAddr)
 	if err != nil {
 		log.Fatalf("failed to create client: %v", err)
 	}

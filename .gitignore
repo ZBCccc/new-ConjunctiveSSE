@@ -5,3 +5,13 @@
 /DB
 /DB_gen
 /.venv
+
+# Local config files — copy config.example.json to config.json and edit
+cmd/ODXT/configs/config.json
+cmd/HDXT/configs/config.json
+cmd/FDXT/configs/config.json
+cmd/SDSSE-CQ/configs/config.json
+
+# Claude Code files
+CLAUDE.md
+.claude/

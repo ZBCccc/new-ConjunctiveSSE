@@ -12,9 +12,13 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func MongoDBSetup(dbName string) (*mongo.Database, error) {
+func MongoDBSetup(dbName string, mongoURI ...string) (*mongo.Database, error) {
+	uri := "mongodb://localhost:27017"
+	if len(mongoURI) > 0 && mongoURI[0] != "" {
+		uri = mongoURI[0]
+	}
 	// Set client options
-	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+	clientOptions := options.Client().ApplyURI(uri)
 
 	// Connect to MongoDB
 	client, err := mongo.Connect(context.TODO(), clientOptions)
@@ -26,11 +30,10 @@ func MongoDBSetup(dbName string) (*mongo.Database, error) {
 	// Check the connection
 	err = client.Ping(context.TODO(), nil)
 	if err != nil {
-		log.Fatal(err)
 		return nil, err
 	}
 
-	// 获取数据库和集合的句柄
+	// Get the database and collection handles
 	PlaintextDB := client.Database(dbName)
 
 	return PlaintextDB, nil
@@ -46,21 +49,19 @@ func GenQuerydataFromDB(dbName, tableName string, numPairs int) error {
 
 	collection := PlaintextDB.Collection(tableName)
 
-	// 创建一个游标，设置不超时并每次获取1000条记录
+	// Create a cursor with no timeout and a batch size of 1000
 	ctx := context.TODO()
 	opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(1000)
 	cur, err := collection.Find(ctx, bson.D{}, opts)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	// 关闭游标
 	defer cur.Close(ctx)
 
-	// 读取游标中的所有记录
 	var keywordIds []bson.M
 	if err = cur.All(ctx, &keywordIds); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	var keywordsList []string
@@ -69,15 +70,15 @@ func GenQuerydataFromDB(dbName, tableName string, numPairs int) error {
 		keywordsList = append(keywordsList, keyword)
 	}
 
-	// 从keywordsList中随机选择2个关键词，共形成numPairs对
+	// Randomly select 2 keywords from keywordsList to form numPairs pairs
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	keywordsPair := make([][]string, numPairs)
 	for i := 0; i < numPairs; i++ {
-		// 创建一个新的切片来避免重复
+		// Create a new slice to avoid duplicates
 		shuffledKeywords := make([]string, len(keywordsList))
 		copy(shuffledKeywords, keywordsList)
 
-		// 随机选择两个不同的关键词
+		// Randomly select two different keywords
 		r.Shuffle(len(shuffledKeywords), func(i, j int) {
 			shuffledKeywords[i], shuffledKeywords[j] = shuffledKeywords[j], shuffledKeywords[i]
 		})
@@ -85,14 +86,14 @@ func GenQuerydataFromDB(dbName, tableName string, numPairs int) error {
 	}
 	utils.WriteResultToFile("keywords_2.txt", keywordsPair)
 
-	// 从keywordsList中随机选择6个关键词，共形成numPairs对
+	// Randomly select 6 keywords from keywordsList to form numPairs pairs
 	keywordsSix := make([][]string, numPairs)
 	for i := 0; i < numPairs; i++ {
-		// 创建一个新的切片来避免重复
+		// Create a new slice to avoid duplicates
 		shuffledKeywords := make([]string, len(keywordsList))
 		copy(shuffledKeywords, keywordsList)
 
-		// 随机选择两个不同的关键词
+		// Randomly select two different keywords
 		r.Shuffle(len(shuffledKeywords), func(i, j int) {
 			shuffledKeywords[i], shuffledKeywords[j] = shuffledKeywords[j], shuffledKeywords[i]
 		})
@@ -104,29 +105,29 @@ func GenQuerydataFromDB(dbName, tableName string, numPairs int) error {
 }
 
 func GetUniqueKeywords(PlaintextDB *mongo.Database) ([]string, error) {
-	// 获取集合句柄
+	// Get the collection handle
 	collection := PlaintextDB.Collection("id_keywords")
 	ctx := context.TODO()
 
-	// 使用聚合管道提取并去重val_set
+	// Use an aggregation pipeline to extract and deduplicate val_set
 	pipeline := mongo.Pipeline{
-		{{Key: "$unwind", Value: "$val_st"}},                             // 展开val_set数组
-		{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$val_st"}}}}, // 按val_set的值进行分组，实现去重
+		{{Key: "$unwind", Value: "$val_st"}},                             // Unwind the val_set array
+		{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$val_st"}}}}, // Group by val_set value to deduplicate
 	}
-	// 执行聚合查询
+	// Execute the aggregation query
 	cursor, err := collection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
 	defer cursor.Close(ctx)
 
-	// 读取查询结果
+	// Read query results
 	var results []bson.M
 	if err = cursor.All(ctx, &results); err != nil {
 		return nil, err
 	}
 
-	// 将结果转换为字符串切片
+	// Convert results to a string slice
 	var uniqueVals []string
 	for _, result := range results {
 		if val, ok := result["_id"].(string); ok {
@@ -138,29 +139,29 @@ func GetUniqueKeywords(PlaintextDB *mongo.Database) ([]string, error) {
 }
 
 func GetUniqueIDs(PlaintextDB *mongo.Database) ([]string, error) {
-	// 获取集合句柄
+	// Get the collection handle
 	collection := PlaintextDB.Collection("id_keywords")
 	ctx := context.TODO()
 
-	// 使用聚合管道提取并去重id
+	// Use an aggregation pipeline to extract and deduplicate id
 	pipeline := mongo.Pipeline{
-		{{Key: "$unwind", Value: "$id"}},                             // 展开id数组
-		{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$id"}}}}, // 按id的值进行分组，实现去重
+		{{Key: "$unwind", Value: "$id"}},                             // Unwind the id array
+		{{Key: "$group", Value: bson.D{{Key: "_id", Value: "$id"}}}}, // Group by id value to deduplicate
 	}
-	// 执行聚合查询
+	// Execute the aggregation query
 	cursor, err := collection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
 	defer cursor.Close(ctx)
 
-	// 读取查询结果
+	// Read query results
 	var results []bson.M
 	if err = cursor.All(ctx, &results); err != nil {
 		return nil, err
 	}
 
-	// 将结果转换为字符串切片
+	// Convert results to a string slice
 	var uniqueVals []string
 	for _, result := range results {
 		if val, ok := result["_id"].(string); ok {

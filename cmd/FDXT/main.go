@@ -10,12 +10,13 @@ import (
 	"time"
 )
 
-// 定义一个类型
+// Config defines the benchmark configuration.
 type Config struct {
-	Db               string `json:"db"`
-	Phase            string `json:"phase"`
-	Group            string `json:"group"`
-	DelRate          int    `json:"del_rate"`
+	Db       string `json:"db"`
+	Phase    string `json:"phase"`
+	Group    string `json:"group"`
+	DelRate  int    `json:"del_rate"`
+	MongoURI string `json:"mongo_uri"`
 }
 
 func main() {
@@ -51,7 +52,10 @@ func main() {
 func TestFDXT(cfg Config) error {
 	var fdxt FDXT.FDXT
 
-	fdxt.Setup(cfg.Db)
+	if err := fdxt.Setup(cfg.Db, cfg.MongoURI); err != nil {
+		fmt.Println("Setup error:", err)
+		return err
+	}
 	if strings.Contains(cfg.Phase, "c") {
 		t1 := time.Now()
 		err := fdxt.UpdatePhase()
