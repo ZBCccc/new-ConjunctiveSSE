@@ -7,6 +7,7 @@ import (
 	pbcUtil "ConjunctiveSSE/pkg/utils/pbc"
 	"context"
 	"encoding/base64"
+	"math"
 	"math/big"
 	"time"
 
@@ -150,11 +151,22 @@ func Encrypt(odxt *ODXT.ODXT, keyword string, id string, operation utils.Operati
 }
 
 func (c *ODXTClient) Search(keywords []string) (time.Duration, time.Duration, []string, error) {
+	// Select the keyword with the lowest update count
+	counter := math.MaxInt
+	var w1 string
+	for _, w := range keywords {
+		num := c.GetODXT().UpdateCnt[w]
+		if num < counter {
+			counter = num
+			w1 = w
+		}
+	}
+
 	// client search step 1
 	clientTime := time.Now()
-	stokenList, xtokenList := c.GetODXT().ClientSearchStep1(keywords)
+	stokenList, xtokenList := c.GetODXT().ClientSearchStep1(w1, keywords)
 	clientTimeDura := time.Since(clientTime)
-	
+
 	// send search request
 	serverTime := time.Now()
 	resp, err := c.client.Search(context.Background(), &pb.SearchRequest{
@@ -167,9 +179,6 @@ func (c *ODXTClient) Search(keywords []string) (time.Duration, time.Duration, []
 	serverTimeDura := time.Since(serverTime)
 
 	// client search step 2
-	ids, err := c.GetODXT().Decrypt(keywords, convertToSEOp(resp.GetSeopList()))
-	if err != nil {
-		return 0, 0, nil, err
-	}
-	return clientTimeDura, serverTimeDura, ids, nil 
+	ids := c.GetODXT().ClientSearchStep2(w1, keywords, convertToSEOp(resp.GetSeopList()))
+	return clientTimeDura, serverTimeDura, ids, nil
 }

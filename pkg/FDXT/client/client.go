@@ -102,7 +102,8 @@ func (f *FDXTClient) Update(cdbXtag map[string]string, cdbTset map[string]*FDXT.
 
 func (f *FDXTClient) Search(keywords []string) ([]string, error) {
 	// client search step 1
-	w1, tkl, stkl, xtkList, err := f.GetFDXT().ClientSearchStep1(keywords)
+	w1 := keywords[0]
+	tkl, stkl, xtkList, err := f.GetFDXT().ClientSearchStep1(w1, keywords)
 	if err != nil {
 		return nil, err
 	}
@@ -119,5 +120,5 @@ func (f *FDXTClient) Search(keywords []string) ([]string, error) {
 	}
 
 	// client search step 2
-	return f.GetFDXT().ClientSearchStep2(w1, keywords, convertToRESList(resp.ResList))
+	return f.GetFDXT().ClientSearchStep2(w1, keywords, convertToRESList(resp.ResList)), nil
 }

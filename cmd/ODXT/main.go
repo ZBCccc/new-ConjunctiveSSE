@@ -49,7 +49,7 @@ func main() {
 
 func TestODXT(cfg Config) error {
 	var odxt ODXT.ODXT
-	err = odxt.DBSetup(cfg.Db, false, cfg.MongoURI)
+	err := odxt.DBSetup(cfg.Db, false, cfg.MongoURI)
 	if err != nil {
 		fmt.Println("DBSetup error", err)
 		return err
