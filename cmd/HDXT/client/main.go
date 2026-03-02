@@ -25,12 +25,12 @@ func main() {
 	flag.Parse()
 
 	c, err := client.NewHDXTClient(*serverAddr, *dbName, *mongoURI)
-    if err != nil {
-        log.Fatalf("failed to create client: %v", err)
-    }
+	if err != nil {
+		log.Fatalf("failed to create client: %v", err)
+	}
 	defer c.Close()
-    
-    // Execute experiment
+
+	// Execute experiment
 	// Get MongoDB database
 	hdxt := c.GetHDXT()
 	plaintextDB := hdxt.PlaintextDB
@@ -58,7 +58,7 @@ func main() {
 	if err = cur.All(ctx, &idKeywords); err != nil {
 		log.Fatal("Error getting keywordIds:", err)
 	}
-    // 1. Setup Phase
+	// 1. Setup Phase
 	log.Println("Setup Phase Start")
 	setupTime := time.Now()
 	idKeywordsSetup := idKeywords[:len(idKeywords)/2]

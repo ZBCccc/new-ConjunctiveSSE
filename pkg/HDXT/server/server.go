@@ -25,28 +25,28 @@ func NewHDXTServer() *HDXTServer {
 
 func (s *HDXTServer) Setup(stream pb.HDXTService_SetupServer) error {
 	mitraCipherMap := make(map[string]string)
-    auhmeCipherMap := make(map[string]string)
-	
+	auhmeCipherMap := make(map[string]string)
+
 	for {
-        req, err := stream.Recv()
-        if err == io.EOF {
-            // Stream ended, return result
+		req, err := stream.Recv()
+		if err == io.EOF {
+			// Stream ended, return result
 			s.mitraCipherList = mitraCipherMap
 			s.auhmeCipherList = auhmeCipherMap
-            return stream.SendAndClose(&pb.SetupResponse{})
-        }
-        if err != nil {
-            return err
-        }
+			return stream.SendAndClose(&pb.SetupResponse{})
+		}
+		if err != nil {
+			return err
+		}
 
-        // Merge each batch's map
-        for k, v := range req.MitraCiphers {
-            mitraCipherMap[k] = v
-        }
-        for k, v := range req.AuhmeCiphers {
-            auhmeCipherMap[k] = v
-        }
-    }
+		// Merge each batch's map
+		for k, v := range req.MitraCiphers {
+			mitraCipherMap[k] = v
+		}
+		for k, v := range req.AuhmeCiphers {
+			auhmeCipherMap[k] = v
+		}
+	}
 }
 
 func (s *HDXTServer) Update(ctx context.Context, req *pb.UpdateRequest) (*pb.UpdateResponse, error) {

@@ -27,7 +27,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create client: %v", err)
 	}
-	
+
 	// Execute experiment
 	dbName := "Crime_USENIX_REV"
 	updateTime := time.Now()
@@ -101,21 +101,20 @@ func UpdatePhase(c *client.FDXTClient, dbName string) {
 	}
 	// save to file
 	saveTime := time.Now()
-	resultpath := filepath.Join("result", "Update", "FDXT", fmt.Sprintf("%s.csv", saveTime.Format("2006-01-02_15-04-05")))
+	resultPath := filepath.Join("result", "Update", "FDXT", fmt.Sprintf("%s.csv", saveTime.Format("2006-01-02_15-04-05")))
 	resultHeader := []string{"encryptTime", "cipherLength"}
 	resultData := make([][]string, len(cipherList))
 	for i, cipher := range cipherList {
 		resultData[i] = []string{encryptTimeList[i].String(), strconv.Itoa(cipher)}
 	}
-	err = utils.WriteResultToCSV(resultpath, resultHeader, resultData)
+	err = utils.WriteResultToCSV(resultPath, resultHeader, resultData)
 	if err != nil {
 		log.Fatal("Error writing result to file:", err)
 	}
 }
 
 func SearchPhase(c *client.FDXTClient, dbName string) {
-	fileName := "keywords_2.txt"
-	fileName = "./cmd/ODXT/configs/" + fileName
+	fileName := "./cmd/ODXT/configs/" + "keywords_2.txt"
 	keywordsList := utils.QueryKeywordsFromFile(fileName)
 
 	// Initialize result list

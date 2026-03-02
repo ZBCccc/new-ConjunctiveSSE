@@ -361,19 +361,19 @@ func (hdxt *HDXT) EditPair(id, keyword string, operation Operation) (*UTok, erro
 		// Process in batches, handling a subset of keywords and IDs at a time
 		batchSize := 1000 // adjust based on actual conditions
 		s = make([]string, 0)
-		
+
 		for i := 0; i < len(universeKeywords); i += batchSize {
 			endI := i + batchSize
 			if endI > len(universeKeywords) {
 				endI = len(universeKeywords)
 			}
-			
+
 			for j := 0; j < len(universeIDs); j += batchSize {
 				endJ := j + batchSize
 				if endJ > len(universeIDs) {
 					endJ = len(universeIDs)
 				}
-				
+
 				batchS := processBatch(hdxt, universeKeywords[i:endI], universeIDs[j:endJ])
 				s = append(s, batchS...)
 			}

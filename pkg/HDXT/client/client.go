@@ -11,7 +11,6 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/keepalive"
 )
 
 type HDXTClient struct {
@@ -21,16 +20,9 @@ type HDXTClient struct {
 }
 
 func NewHDXTClient(serverAddr, dbName, mongoURI string) (*HDXTClient, error) {
-	// Add keepalive parameters
-	kacp := keepalive.ClientParameters{
-		Time:                3 * time.Second, // Send ping every 10 seconds
-		Timeout:             2 * time.Second, // Ping timeout duration
-		PermitWithoutStream: true,            // Allow sending ping without active stream
-	}
 	conn, err := grpc.NewClient(
 		serverAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithKeepaliveParams(kacp),
 		grpc.WithDefaultCallOptions(
 			grpc.MaxCallRecvMsgSize(100*1024*1024), // 100MB
 			grpc.MaxCallSendMsgSize(100*1024*1024), // 100MB

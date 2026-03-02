@@ -3,11 +3,10 @@ package main
 import (
 	pb "ConjunctiveSSE/pkg/HDXT/proto"
 	"ConjunctiveSSE/pkg/HDXT/server"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/keepalive"
 	"log"
 	"net"
-	"time"
+
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -16,24 +15,9 @@ func main() {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	kaep := keepalive.EnforcementPolicy{
-		MinTime:             5 * time.Second, // Minimum ping interval
-		PermitWithoutStream: true,            // Allow ping without stream
-	}
-
-	kasp := keepalive.ServerParameters{
-		MaxConnectionIdle:     15 * time.Minute,
-		MaxConnectionAge:      30 * time.Minute,
-		MaxConnectionAgeGrace: 5 * time.Second,
-		Time:                  5 * time.Second,
-		Timeout:               2 * time.Second,
-	}
-
 	s := grpc.NewServer(
 		grpc.MaxRecvMsgSize(100*1024*1024),
 		grpc.MaxSendMsgSize(100*1024*1024),
-		grpc.KeepaliveEnforcementPolicy(kaep),
-		grpc.KeepaliveParams(kasp),
 	)
 	pb.RegisterHDXTServiceServer(s, server.NewHDXTServer())
 

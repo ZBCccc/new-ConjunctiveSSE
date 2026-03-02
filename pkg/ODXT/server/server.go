@@ -26,15 +26,6 @@ func NewODXTServer() *ODXTServer {
 	}
 }
 
-//func (s *ODXTServer) Update(ctx context.Context, req *pb.UpdateRequest) (*pb.UpdateResponse, error) {
-//	s.XSet[req.Xtag] = 1
-//	s.TSet[req.Address] = &ODXT.TsetValue{
-//		Val:   req.Val,
-//		Alpha: pbcUtil.BytesToElement(req.Alpha),
-//	}
-//	return &pb.UpdateResponse{Success: true}, nil
-//}
-
 func (s *ODXTServer) Update(stream pb.ODXTService_UpdateServer) error {
 	xSet := make(map[string]int)
 	tSet := make(map[string]*ODXT.TsetValue)
@@ -42,7 +33,7 @@ func (s *ODXTServer) Update(stream pb.ODXTService_UpdateServer) error {
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
-		// Stream ends, return result
+			// Stream ends, return result
 			s.TSet = tSet
 			s.XSet = xSet
 			return stream.SendAndClose(&pb.UpdateResponse{})
@@ -51,7 +42,7 @@ func (s *ODXTServer) Update(stream pb.ODXTService_UpdateServer) error {
 			return err
 		}
 
-	// Merge each batch's map
+		// Merge each batch's map
 		for k, v := range req.TSet {
 			tSet[k] = &ODXT.TsetValue{
 				Val:   v.Val,
@@ -78,7 +69,7 @@ func (s *ODXTServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Sea
 	var wg sync.WaitGroup
 	for j, stoken := range stokenList {
 		wg.Add(1)
-		go func (j int)  {
+		go func(j int) {
 			defer wg.Done()
 			cnt := 1
 			val, alpha := s.TSet[stoken].Val, s.TSet[stoken].Alpha
@@ -88,7 +79,7 @@ func (s *ODXTServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Sea
 			for _, xtoken := range xtokenList[j] {
 				// Check if xtag matches
 				wgg.Add(1)
-				go func (xtoken *pbc.Element)  {
+				go func(xtoken *pbc.Element) {
 					defer wgg.Done()
 					xtag := pbcUtil.Pow(xtoken, alpha)
 					if _, ok := s.XSet[base64.StdEncoding.EncodeToString(xtag.Bytes())]; ok {

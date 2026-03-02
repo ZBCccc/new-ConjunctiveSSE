@@ -6,15 +6,16 @@ import (
 	"ConjunctiveSSE/pkg/utils"
 	"context"
 	"fmt"
-	util "github.com/ZBCccc/Aura/Util"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"math"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	util "github.com/ZBCccc/Aura/Util"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -147,8 +148,8 @@ func SearchPhase(tableName, fileName string) {
 				counter = num
 			}
 		}
-		w1CounterList = append(w1CounterList, client.CT[keywords[0]] + 1)
-		w2CounterList = append(w2CounterList, client.CT[keywords[1]] + 1)
+		w1CounterList = append(w1CounterList, client.CT[keywords[0]]+1)
+		w2CounterList = append(w2CounterList, client.CT[keywords[1]]+1)
 		result, clientTime, serverTime, serverAuraTime := client.Search(keywords)
 		totalTime := time.Since(totalStart)
 

@@ -95,4 +95,3 @@ func (s *FDXTServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.Sea
 	}
 	return &pb.SearchResponse{ResList: convertToResList(resList)}, nil
 }
-

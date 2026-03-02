@@ -9,7 +9,6 @@ func sizeOfXtokenList_2D(xtokenList_2D *pb.XtokenList_2D) int {
 	return len(xtokenList_2D.XtokenList)
 }
 
-
 func convertToResList(resList []*FDXT.RES) []*pb.RES {
 	res := make([]*pb.RES, 0, len(resList))
 	for _, r := range resList {

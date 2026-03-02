@@ -12,40 +12,38 @@ import (
 )
 
 func PrfF(key, message []byte) ([]byte, error) {
-    // Check if key length is 16 bytes (128 bits)
-    if len(key) != 16 {
-        return nil, errors.New("key must be 16 bytes for AES-128")
-    }
+	// Check if key length is 16 bytes (128 bits)
+	if len(key) != 16 {
+		return nil, errors.New("key must be 16 bytes for AES-128")
+	}
 
-    // 1. First use AES-ECB-128
-    cipher, err := aes.NewCipher(key)
-    if err != nil {
-        return nil, err
-    }
+	// 1. First use AES-ECB-128
+	cipher, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
 
-    // Ensure message length is a multiple of 16 bytes
-    paddedMessage := pkcs7Padding(message, 16)
-    encrypted := make([]byte, len(paddedMessage))
+	// Ensure message length is a multiple of 16 bytes
+	paddedMessage := pkcs7Padding(message, 16)
+	encrypted := make([]byte, len(paddedMessage))
 
-    // Implement ECB mode encryption
-    for i := 0; i < len(paddedMessage); i += 16 {
-        cipher.Encrypt(encrypted[i:i+16], paddedMessage[i:i+16])
-    }
+	// Implement ECB mode encryption
+	for i := 0; i < len(paddedMessage); i += 16 {
+		cipher.Encrypt(encrypted[i:i+16], paddedMessage[i:i+16])
+	}
 
-    // 2. Then perform SHA-256 hash
-    hash := sha256.Sum256(encrypted)
-    
-    return hash[:], nil
+	// 2. Then perform SHA-256 hash
+	hash := sha256.Sum256(encrypted)
+
+	return hash[:], nil
 }
-
 
 // PKCS7 padding
 func pkcs7Padding(data []byte, blockSize int) []byte {
-    padding := blockSize - len(data)%blockSize
-    padText := bytes.Repeat([]byte{byte(padding)}, padding)
-    return append(data, padText...)
+	padding := blockSize - len(data)%blockSize
+	padText := bytes.Repeat([]byte{byte(padding)}, padding)
+	return append(data, padText...)
 }
-
 
 // mitraEncrypt generates encrypted address and value for the given keyword and id.
 // Parameters:

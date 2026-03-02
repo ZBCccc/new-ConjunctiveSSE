@@ -66,7 +66,7 @@ func Xor(s1, s2 []byte) []byte {
 	}
 
 	result := make([]byte, len(s1))
-    copy(result, s1)
+	copy(result, s1)
 	for i := 0; i < len(result); i++ {
 		result[i] ^= s2[i]
 	}

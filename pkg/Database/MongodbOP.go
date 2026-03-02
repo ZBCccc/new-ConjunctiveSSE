@@ -1,11 +1,8 @@
 package Database
 
 import (
-	"ConjunctiveSSE/pkg/utils"
 	"context"
 	"log"
-	"math/rand"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -37,71 +34,6 @@ func MongoDBSetup(dbName string, mongoURI ...string) (*mongo.Database, error) {
 	PlaintextDB := client.Database(dbName)
 
 	return PlaintextDB, nil
-}
-
-func GenQuerydataFromDB(dbName, tableName string, numPairs int) error {
-	PlaintextDB, err := MongoDBSetup(dbName)
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-	defer PlaintextDB.Client().Disconnect(context.TODO())
-
-	collection := PlaintextDB.Collection(tableName)
-
-	// Create a cursor with no timeout and a batch size of 1000
-	ctx := context.TODO()
-	opts := options.Find().SetNoCursorTimeout(true).SetBatchSize(1000)
-	cur, err := collection.Find(ctx, bson.D{}, opts)
-	if err != nil {
-		return err
-	}
-
-	defer cur.Close(ctx)
-
-	var keywordIds []bson.M
-	if err = cur.All(ctx, &keywordIds); err != nil {
-		return err
-	}
-
-	var keywordsList []string
-	for _, keywordId := range keywordIds {
-		keyword := keywordId["k"].(string)
-		keywordsList = append(keywordsList, keyword)
-	}
-
-	// Randomly select 2 keywords from keywordsList to form numPairs pairs
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	keywordsPair := make([][]string, numPairs)
-	for i := 0; i < numPairs; i++ {
-		// Create a new slice to avoid duplicates
-		shuffledKeywords := make([]string, len(keywordsList))
-		copy(shuffledKeywords, keywordsList)
-
-		// Randomly select two different keywords
-		r.Shuffle(len(shuffledKeywords), func(i, j int) {
-			shuffledKeywords[i], shuffledKeywords[j] = shuffledKeywords[j], shuffledKeywords[i]
-		})
-		keywordsPair[i] = shuffledKeywords[:2]
-	}
-	utils.WriteResultToFile("keywords_2.txt", keywordsPair)
-
-	// Randomly select 6 keywords from keywordsList to form numPairs pairs
-	keywordsSix := make([][]string, numPairs)
-	for i := 0; i < numPairs; i++ {
-		// Create a new slice to avoid duplicates
-		shuffledKeywords := make([]string, len(keywordsList))
-		copy(shuffledKeywords, keywordsList)
-
-		// Randomly select two different keywords
-		r.Shuffle(len(shuffledKeywords), func(i, j int) {
-			shuffledKeywords[i], shuffledKeywords[j] = shuffledKeywords[j], shuffledKeywords[i]
-		})
-		keywordsSix[i] = shuffledKeywords[:6]
-	}
-	utils.WriteResultToFile("keywords_6.txt", keywordsSix)
-
-	return nil
 }
 
 func GetUniqueKeywords(PlaintextDB *mongo.Database) ([]string, error) {
