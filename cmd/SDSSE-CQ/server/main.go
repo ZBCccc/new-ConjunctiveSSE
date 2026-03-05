@@ -7,7 +7,6 @@ import (
 	"net"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -19,7 +18,6 @@ func main() {
 	s := grpc.NewServer(
 		grpc.MaxRecvMsgSize(100*1024*1024),
 		grpc.MaxSendMsgSize(100*1024*1024),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	pb.RegisterSDSSEcqServiceServer(s, server.NewSDSSEcqServer())
 

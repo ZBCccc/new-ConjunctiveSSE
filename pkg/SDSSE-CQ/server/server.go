@@ -8,9 +8,9 @@ import (
 	"log"
 	"sync"
 
-	"github.com/Nik-U/pbc"
 	pbcUtil "ConjunctiveSSE/pkg/utils/pbc"
 	sseclient "github.com/ZBCccc/Aura/Core/SSEClient"
+	util "github.com/ZBCccc/Aura/Util"
 )
 
 type SDSSEcqServer struct {
@@ -60,8 +60,8 @@ func (s *SDSSEcqServer) Update(ctx context.Context, req *pb.UpdateRequest) (*pb.
 	xval := req.Xval
 
 	// Apply update to TSet and XSet
-	s.TSet.Update(int(op), keyword, tval)
-	s.XSet.Update(int(op), keyword, xval)
+	s.TSet.Update(util.Operation(op), keyword, tval)
+	s.XSet.Update(util.Operation(op), keyword, xval)
 
 	return &pb.UpdateResponse{Success: true}, nil
 }
@@ -92,6 +92,14 @@ func (s *SDSSEcqServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.
 		}
 	}
 
+	// Reconstruct 2D xtoken structure from flattened array
+	// xtokenLists is flattened: [counter0_kw0, counter0_kw1, ..., counter1_kw0, counter1_kw1, ...]
+	numKeywords := len(keywords)
+	if numKeywords == 0 || len(xtokenLists)%numKeywords != 0 {
+		return &pb.SearchResponse{ResultList: nil}, nil
+	}
+	numCounters := len(xtokenLists) / numKeywords
+
 	// Filter results: for each TSet entry, check if all xtokens match
 	Res := make([]string, 0, len(ResT))
 	for _, v := range ResT {
@@ -113,9 +121,12 @@ func (s *SDSSEcqServer) Search(ctx context.Context, req *pb.SearchRequest) (*pb.
 
 		// Check if xtokens match for counter c
 		flag := true
-		if c < len(xtokenLists) {
-			for _, xtokenBytes := range xtokenLists[c] {
-				xtoken := pbcUtil.BytesToG1(xtokenBytes)
+		if c < numCounters {
+			// Get xtokens for counter c
+			startIdx := c * numKeywords
+			endIdx := startIdx + numKeywords
+			for i := startIdx; i < endIdx; i++ {
+				xtoken := pbcUtil.BytesToG1(xtokenLists[i])
 				powed := pbcUtil.Pow(xtoken, y)
 				xTagStr := base64.StdEncoding.EncodeToString(powed.Bytes())
 

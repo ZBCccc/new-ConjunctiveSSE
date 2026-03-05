@@ -14,10 +14,10 @@ import (
 	pbcUtil "ConjunctiveSSE/pkg/utils/pbc"
 
 	"github.com/Nik-U/pbc"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	sseclient "github.com/ZBCccc/Aura/Core/SSEClient"
 	util "github.com/ZBCccc/Aura/Util"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // SDSSEcqClient wraps the SDSSE-CQ client with gRPC connectivity.

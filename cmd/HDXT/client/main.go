@@ -1,7 +1,6 @@
 package main
 
 import (
-	"ConjunctiveSSE/pkg/Database"
 	"ConjunctiveSSE/pkg/HDXT"
 	"ConjunctiveSSE/pkg/HDXT/client"
 	"ConjunctiveSSE/pkg/utils"
