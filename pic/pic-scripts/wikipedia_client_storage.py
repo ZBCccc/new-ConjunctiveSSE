@@ -14,29 +14,23 @@ plt.rcParams['font.size'] = 20
 
 # 预设文件地址
 file_paths = {
-    "FDXT": "pic/data/FDXT_Wikipedia.csv",
-    "ODXT": "pic/data/ODXT_Wikipedia.csv",
-    "SDSSE-CQ": "pic/data/SDSSE-CQ_Wikipedia.csv",
-    "Mitra": "pic/data/Mitra_Wikipedia.csv",
-    "Bestie": "pic/data/Bestie_Wikipedia.csv"
+    "FDXT": "pic/client_data/FDXT_Wikipedia.csv",
+    "ODXT": "pic/client_data/ODXT_Wikipedia.csv",
+    "SDSSE-CQ": "pic/client_data/SDSSE-CQ_Wikipedia.csv"
 }
 
 # 设置不同文件的颜色方案
 colors = {
     "FDXT": '#2ca02c',
     "ODXT": '#1f77b4',
-    "SDSSE-CQ": '#d62728',
-    "Mitra": '#ff7f0e',
-    "Bestie": '#9467bd'
+    "SDSSE-CQ": '#d62728'
 }
 
 # 设置不同的标记形状
 markers = {
     "FDXT": 'D',      # 菱形
     "ODXT": 's',      # 方形
-    "SDSSE-CQ": 'v',  # 倒三角
-    "Mitra": 'o',     # 圆形
-    "Bestie": '^'     # 正三角
+    "SDSSE-CQ": 'v'   # 倒三角
 }
 
 fig = plt.figure(figsize=(18, 12), dpi=3600)
@@ -66,11 +60,11 @@ for scheme, file_path in file_paths.items():
         # 使用KeywordCount列作为x轴
         x_values = df['KeywordCount']
 
-        # 转换为MB
-        y_values = (df['Storage(Bits)']) / 8.0 / 1024.0 / 1024.0
+        # 转换为KB
+        y_values = (df['Storage(Bits)']) / 8.0 / 1024.0
 
         # 选择每隔400个点进行采样
-        indices = np.arange(600, len(x_values), 400)
+        indices = np.arange(200, len(x_values), 400)
         x_sampled = x_values.iloc[indices]
         y_sampled = y_values.iloc[indices]
 
@@ -99,7 +93,7 @@ for scheme, file_path in file_paths.items():
 
 # 设置主图属性
 ax_main.set_xlabel('Keywords Number', fontsize=42, fontweight='bold', labelpad=1)
-ax_main.set_ylabel('Server Storage Cost (MB)', fontsize=42, fontweight='bold', labelpad=1, rotation=90)
+ax_main.set_ylabel('Client Storage Cost (KB)', fontsize=42, fontweight='bold', labelpad=1, rotation=90)
 
 # 设置主图的x轴范围和刻度
 ax_main.set_xlim(0, 11000)
@@ -111,10 +105,10 @@ ax_main.set_xticklabels([f'{int(x/1000)}k' if x != 0 else '0' for x in x_ticks],
 plt.yscale('log')
 
 # 设置对数坐标轴的刻度
-y_ticks = [0.1, 1, 10, 100, 1000]
-y_labels = ['$10^{-1}$', '$10^{0}$', '$10^{1}$', '$10^{2}$', '$10^{3}$']
+y_ticks = [1, 10, 100, 1000, 10000, 100000]
+y_labels = ['$10^{0}$', '$10^{1}$', '$10^{2}$', '$10^{3}$', '$10^{4}$', '$10^{5}$']
 plt.yticks(y_ticks, y_labels, fontsize=50)
-plt.ylim(0.1, 1000)
+plt.ylim(1, 100000)
 
 # 强制设置刻度线朝向内侧
 ax_main.tick_params(axis='both', which='both', direction='in')
@@ -124,12 +118,15 @@ ax_main.tick_params(axis='x', which='minor', bottom=True, top=True, length=4, wi
 ax_main.tick_params(axis='y', which='minor', left=True, right=True, length=4, width=2)
 
 # 设置次要刻度线
-ax_main.xaxis.set_minor_locator(plt.MultipleLocator(2000))
+ax_main.xaxis.set_minor_locator(plt.MultipleLocator(1000))
+# 对数刻度的y轴会自动生成次要刻度线，但我们可以确保它们显示
+from matplotlib.ticker import LogLocator
+ax_main.yaxis.set_minor_locator(LogLocator(base=10.0, subs='auto', numticks=100))
 
 # 添加图例到上面的子图
-leg = ax_legend.legend(handles, labels, loc='center', ncol=5, frameon=True,
-                      fontsize=36, handlelength=2.25, handletextpad=0.3, borderpad=0.3,
-                      columnspacing=0.6, markerscale=1.2,
+leg = ax_legend.legend(handles, labels, loc='center', ncol=3, frameon=True,
+                      fontsize=45, handlelength=4.2, handletextpad=0.2, borderpad=0.2,
+                      columnspacing=0.5, markerscale=1.5,
                       bbox_to_anchor=(0.5, 0.5),
                       bbox_transform=ax_legend.transAxes)
 
@@ -142,4 +139,4 @@ frame.set_edgecolor('black')
 plt.subplots_adjust(left=0.12, right=0.97, top=0.98, bottom=0.12)
 
 # 保存文件
-plt.savefig("pic/storage/Wikipedia_storage_comparison.pdf", dpi=3600, format='pdf')
+plt.savefig("pic/client_storage/Wikipedia_client_storage_comparison.pdf", dpi=3600, format='pdf')
