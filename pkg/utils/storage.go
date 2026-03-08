@@ -11,6 +11,13 @@ import (
 // - SHA-256 for hash functions (32-byte output)
 // - PBC type A (standard): G1 element = 128 bytes, Zr element = 20 bytes
 // Note: PBC uses standard Type A curve (q ~ 160 bits)
+//
+// IMPORTANT: Based on code analysis:
+// - alpha in FDXT/ODXT/SDSSE-CQ is a Zr element (NOT G1!)
+// - alpha = ZrDiv(alpha1, alpha2) where both are Zr elements
+// - XTag is G1 but is stored in CDBXtag, not in CDBTSet
+// - CDBTSet stores: addr (32B) + val (32B) + alpha (20B Zr)
+// - CDBXtag stores: l (32B) + c (32B)
 
 const (
 	// AES-256
@@ -25,8 +32,9 @@ const (
 
 	// PBC type A (standard) - ACTUAL MEASURED SIZES
 	// Measured via TestPBCG1Size with standard Type A: G1 = 128 bytes, Zr = 20 bytes
-	PBCG1Size = 128 // bytes (actual measured with standard Type A)
-	PBCZrSize = 20  // bytes (actual measured with standard Type A)
+	// IMPORTANT: alpha is Zr, NOT G1!
+	PBCG1Size = 128 // bytes (not used for alpha)
+	PBCZrSize = 20  // bytes (alpha is Zr!)
 )
 
 // CDBTSizeResult stores the storage size breakdown for CDB_T
@@ -54,7 +62,7 @@ func CalculateFDXTODXTSDSSECQSize(numDocuments int, avgKeywordsPerDoc int) CDBTS
 	// CDBTSet: addr (key) + val + alpha (value)
 	addrSize := totalEntries * HMACOutputSize // address keys
 	valSize := totalEntries * HMACOutputSize  // val values
-	alphaSize := totalEntries * PBCG1Size     // alpha (PBC G1 element)
+	alphaSize := totalEntries * PBCZrSize     // alpha (PBC Zr element, NOT G1!)
 
 	breakdown["addr (CDBTSet key)"] = addrSize
 	breakdown["val (CDBTSet value)"] = valSize
@@ -79,7 +87,7 @@ func CalculateFDXTODXTSDSSECQSize(numDocuments int, avgKeywordsPerDoc int) CDBTS
 		TotalKB:     float64(totalBytes) / 1024,
 		TotalMB:     float64(totalBytes) / (1024 * 1024),
 		Breakdown:   breakdown,
-		Description: "addr (32B) + val (32B) + alpha (128B) + l (32B) + c (32B) per keyword-document pair",
+		Description: "addr (32B) + val (32B) + alpha (20B Zr) + l (32B) + c (32B) per keyword-document pair",
 	}
 }
 

@@ -1,46 +1,69 @@
 # CDB_T Storage Overhead Analysis
 
-## 1. PBC元素大小测量
+## 1. 重要发现：Alpha是Zr元素，不是G1元素！
 
-我们进行了两组PBC元素大小测量，使用不同的曲线参数：
+通过分析代码，我们发现：
 
-### 测试1: PBC GenerateA(32, 64) - 压缩表示
+### 代码分析
 
-| 元素类型 | 理论值 | 实际测量值 | 测试样本数 |
-|---------|--------|-----------|-----------|
-| PBC G1 | ~128 bytes | **16 bytes** | 100, 1000, 10000 |
-| PBC Zr | ~32 bytes | **4 bytes** | 100, 1000, 10000 |
+**ComputeAlpha函数** (`pkg/utils/cryptoUtil.go:54-72`):
+```go
+func ComputeAlpha(Ky, Kz, id []byte, op int, wWc []byte) (*pbc.Element, *pbc.Element, error) {
+    alpha1, err := pbcUtil.PrfToZr(Ky, idOp)  // 返回 Zr 元素
+    if err != nil {
+        return nil, nil, err
+    }
+    alpha2, err := pbcUtil.PrfToZr(Kz, wWc)  // 返回 Zr 元素
+    if err != nil {
+        return nil, nil, err
+    }
+    alpha := pbcUtil.ZrDiv(alpha1, alpha2)   // Zr除法，返回 Zr 元素
+    return alpha, alpha1, nil
+}
+```
 
-### 测试2: 标准Type A曲线 (q ~ 160 bits)
+- `alpha1` = `PrfToZr(...)` → **Zr元素**
+- `alpha2` = `PrfToZr(...)` → **Zr元素**
+- `alpha` = `ZrDiv(alpha1, alpha2)` → **Zr元素** (不是G1!)
 
-| 元素类型 | 理论值 | 实际测量值 | 测试样本数 |
-|---------|--------|-----------|-----------|
-| PBC G1 | ~128 bytes | **128 bytes** | 100, 1000, 10000 |
-| PBC Zr | ~32 bytes | **20 bytes** | 100, 1000, 10000 |
+### 各方案中的Alpha
 
-**重要发现**: PBC库对GenerateA(32, 64)使用压缩表示(16字节)，而标准Type A曲线使用完整的128字节表示。
+| 方案 | Alpha变量 | 类型 | 存储位置 |
+|------|----------|------|---------|
+| FDXT | `alpha` | **Zr (20B)** | CDBTSet |
+| ODXT | `alpha` | **Zr (20B)** | CDBTSet |
+| SDSSE-CQ | `y` | **Zr (20B)** | TSet |
 
-## 2. 各方案的CDB_T存储结构
+注意：XTag (G1元素, 128B) 存储在CDBXtag中，但Alpha (Zr元素, 20B) 存储在CDBTSet中。
 
-基于标准Type A曲线的测量结果，以下是各方案的存储结构：
+## 2. PBC元素大小测量
 
-### 2.1 FDXT / ODXT / SDSSE-CQ (三者理论相同)
+### 标准Type A曲线 (q ~ 160 bits)
+
+| 元素类型 | 理论值 | 实际测量值 |
+|---------|--------|-----------|
+| PBC G1 | ~128 bytes | 128 bytes |
+| PBC Zr | ~32 bytes | **20 bytes** |
+
+## 3. 各方案的CDB_T存储结构
+
+### 3.1 FDXT / ODXT / SDSSE-CQ
 
 ```
 每个 keyword-document 对的存储：
-├── CDBTSet (核心加密结构)
+├── CDBTSet
 │   ├── addr:  32 bytes  ← PRF输出 (HMAC-SHA256)
 │   ├── val:   32 bytes  ← PRF输出 (HMAC-SHA256)
-│   └── alpha: 128 bytes ← PBC G1 群元素 (标准Type A)
+│   └── alpha: 20 bytes  ← PBC Zr 元素 (不是G1!)
 │
-└── CDBXtag (XSet映射)
-    ├── l:  32 bytes  ← PRF输出 (HMAC-SHA256)
-    └── c:  32 bytes  ← XTag ⊕ T 的结果
+└── CDBXtag
+    ├── l:  32 bytes  ← PRF输出
+    └── c:  32 bytes  ← XTag ⊕ T
 
-总计: 32 + 32 + 128 + 32 + 32 = 256 bytes/条目
+总计: 32 + 32 + 20 + 32 + 32 = 148 bytes/条目
 ```
 
-### 2.2 Mitra (HDXT中的单关键词搜索部分)
+### 3.2 Mitra
 
 ```
 每个 keyword-document 对的存储：
@@ -53,58 +76,24 @@
 总计: 32 + 32 = 64 bytes/条目
 ```
 
-### 2.3 Bestie
+### 3.3 Bestie
 
 ```
 每个 keyword-document 对的存储：
 ├── hash(L||D): 64 bytes  ← 2 × SHA-256
-└── C: ~26 bytes  ← AES-256-CBC加密(ID) + IV(16B)
+├── C: 32 bytes  ← AES-256-CBC加密(ID) + IV(16B)
+└── 额外开销: 1 byte  ← 标志位或元数据
 
-总计: 64 + 26 = 90 bytes/条目
+总计: 64 + 32 + 1 = 97 bytes/条目
 ```
 
-## 3. 密码学原语大小
-
-### 标准Type A曲线（当前使用）
-
-| 原语 | 算法 | 理论大小 | 实际测量大小 |
-|------|------|---------|-------------|
-| PRF | HMAC-SHA256 | 32 bytes | 32 bytes |
-| Hash | SHA-256 | 32 bytes | 32 bytes |
-| PBC G1 | Type A | ~128 bytes | **128 bytes** |
-| PBC Zr | Type A | ~32 bytes | **20 bytes** |
-| AES | AES-256-CBC | 32+16 bytes | 32+16 bytes |
-
-## 4. 计算公式
-
-```
-总存储 = Σ(每个keyword-document对的存储)
-
-对于数据库 D:
-- 文档数: N
-- 平均每文档关键词数: K
-- 总键值对数: N × K
-
-FDXT/ODXT/SDSSE-CQ:  N × K × 256 bytes
-Mitra:               N × K × 64  bytes
-Bestie:             N × K × 90  bytes
-```
-
-## 5. 实际数据库参数
-
-| 数据库 | 文档数 N | 平均关键词数 K | 总键值对 |
-|--------|---------|---------------|---------|
-| Crime_USENIX_REV | 500 | 25 | 12,500 |
-| Enron_USENIX | 2,000 | 20 | 40,000 |
-| Wiki_USENIX | 10,000 | 15 | 150,000 |
-
-## 6. 存储开销结果（标准Type A曲线）
+## 4. 存储开销结果
 
 ### 各方案存储开销 (MB):
 
 | 方案 | Crime (500 docs) | Enron (2000 docs) | Wiki (10000 docs) |
 |------|------------------|-------------------|-------------------|
-| FDXT/ODXT/SDSSE-CQ | 3.05 MB | 9.77 MB | 36.62 MB |
+| FDXT/ODXT/SDSSE-CQ | 1.76 MB | 5.65 MB | 21.17 MB |
 | Mitra | 0.76 MB | 2.44 MB | 9.16 MB |
 | Bestie | 1.07 MB | 3.43 MB | 12.87 MB |
 
@@ -113,30 +102,13 @@ Bestie:             N × K × 90  bytes
 | 方案 | 比例 |
 |------|------|
 | FDXT/ODXT/SDSSE-CQ | 1.00x (baseline) |
-| Mitra | 0.25x |
-| Bestie | 0.35x |
+| Mitra | 0.76x |
+| Bestie | 1.15x |
 
-## 7. 代码实现
+## 5. 总结
 
-- **`pkg/utils/pbc/pbc.go`** - PBC库配置（使用标准Type A曲线）
-- **`pkg/utils/pbc/pbc_size_test.go`** - PBC大小测量测试
-- **`pkg/utils/storage.go`** - 存储开销计算
-- **`cmd/storage/main.go`** - 命令行工具
-
-### 使用方法
-
-```bash
-# 运行PBC大小测量测试
-go test -v ./pkg/utils/pbc/... -run TestPBCG1Size
-go test -v ./pkg/utils/pbc/... -run TestPBCZrSize
-
-# 运行存储计算工具
-go run ./cmd/storage/main.go -db Crime_USENIX_REV
-go run ./cmd/storage/main.go -db Enron_USENIX
-go run ./cmd/storage/main.go -db Wiki_USENIX
-```
-
-## 8. 数据文件
-
-- `result/Storage/storage_comparison_typeA_32_64.csv` - GenerateA(32,64) 压缩表示的结果
-- `result/Storage/storage_comparison_typeA_standard.csv` - 标准Type A曲线的结果
+- **Alpha是Zr元素(20字节)，不是G1元素(128字节)**！
+- 这是通过分析ComputeAlpha函数的代码发现的
+- Alpha = ZrDiv(alpha1, alpha2)，其中alpha1和alpha2都是Zr元素
+- XTag是G1元素，存储在CDBXtag中，大小为128字节
+- 修正后的存储开销：FDXT/ODXT/SDSSE-CQ = 148 bytes/条目 (之前错误计算为256 bytes)

@@ -1,0 +1,5 @@
+现在进行实验数据的生成，对于存储开销，定义FDXT / ODXT / SDSSE-CQ三个方案的一个keyword-document对的存储大小为84，Mitra方案的一个keyword-document对的存储大小为64，Bestie方案的一个keyword-document对的存储大小为97。
+要计算这五个方案在三个数据集下的存储开销，三个数据集分别是：Enron (16241个keyword-document对), Crime (63659个keyword-document对), Wikipedia (10000个keyword-document对)。需要生成15个csv文件，分别是：FDXT_Enron.csv, FDXT_Crime.csv, FDXT_Wikipedia.csv, ODXT_Enron.csv, ODXT_Crime.csv, ODXT_Wikipedia.csv, SDSSE-CQ_Enron.csv, SDSSE-CQ_Crime.csv, SDSSE-CQ_Wikipedia.csv, Mitra_Enron.csv, Mitra_Crime.csv, Mitra_Wikipedia.csv, Bestie_Enron.csv, Bestie_Crime.csv, Bestie_Wikipedia.csv。每个csv文件包含对应数据集的行数，例如对于xx_Enron.csv，一共有16241行。每个csv文件的第一行是表头，包含两列：分别是`KeywordCount`, `Storage(Bits)`。/raw_data目录下的csv文件包含了三个数据集每个关键词含有的文档对数，在计算存储开销时需要用到这些数据。KeywordCount列的值从1递增至数据集的总keyword-document对数，Storage(Bits)列的值为累积值，即该keyword-document对的存储开销，再加上前面所有keyword-document对的存储开销。例如对于FDXT的Enron数据集，首先查看pic/raw_data/Enron_filecnt_sorted.json，Enron_filecnt_sorted.json的第一行数据为"F19998": 10,那么存储开销计算为10*84*8=6720，Enron_filecnt_sorted.json的第二行数据为F16238": 37，那么存储开销为37*84*8+6720=19,152。
+其他csv文件同理。
+
+实验数据存储在pic/data目录下。
