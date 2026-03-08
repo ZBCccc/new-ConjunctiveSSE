@@ -66,7 +66,7 @@ func main() {
 			if datasetName == "Wiki" {
 				outputName = "Wikipedia"
 			}
-			filename := fmt.Sprintf("pic/server_data/%s_%s.csv", scheme, outputName)
+			filename := fmt.Sprintf("pic/client_data/%s_%s.csv", scheme, outputName)
 			outFile, err := os.Create(filename)
 			if err != nil {
 				fmt.Printf("Error creating %s: %v\n", filename, err)
@@ -86,8 +86,8 @@ func main() {
 					// storage = calculate_binary_storage(KeywordCount) + 9 * 8
 					storageForKeyword = calculateBinaryStorage(docCount) + 9*8
 				case "FDXT":
-					// storage = calculate_binary_storage(KeywordCount) * 1.02 + 9 * 8
-					storageForKeyword = calculateBinaryStorage(docCount)*1.02 + 9*8
+					// storage = calculate_binary_storage(KeywordCount) * 2.02 + 9 * 8
+					storageForKeyword = int(float64(calculateBinaryStorage(docCount))*2.02) + 9*8
 				case "SDSSE-CQ":
 					// storage = calculate_binary_storage(KeywordCount) * 3 + bf_storage + 9 * 8
 					storageForKeyword = calculateBinaryStorage(docCount)*3 + int(bfStorage) + 9*8
@@ -104,5 +104,5 @@ func main() {
 		}
 	}
 
-	fmt.Println("\nAll server storage files generated successfully!")
+	fmt.Println("\nAll client storage files generated successfully!")
 }

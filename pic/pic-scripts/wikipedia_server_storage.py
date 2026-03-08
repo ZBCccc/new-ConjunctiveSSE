@@ -14,11 +14,11 @@ plt.rcParams['font.size'] = 20
 
 # 预设文件地址
 file_paths = {
-    "FDXT": "pic/data/FDXT_Wikipedia.csv",
-    "ODXT": "pic/data/ODXT_Wikipedia.csv",
-    "SDSSE-CQ": "pic/data/SDSSE-CQ_Wikipedia.csv",
-    "Mitra": "pic/data/Mitra_Wikipedia.csv",
-    "Bestie": "pic/data/Bestie_Wikipedia.csv"
+    "FDXT": "pic/server_data/FDXT_Wikipedia.csv",
+    "ODXT": "pic/server_data/ODXT_Wikipedia.csv",
+    "SDSSE-CQ": "pic/server_data/SDSSE-CQ_Wikipedia.csv",
+    "Mitra": "pic/server_data/Mitra_Wikipedia.csv",
+    "Bestie": "pic/server_data/Bestie_Wikipedia.csv"
 }
 
 # 设置不同文件的颜色方案
@@ -102,7 +102,7 @@ ax_main.set_xlabel('Keywords Number', fontsize=42, fontweight='bold', labelpad=1
 ax_main.set_ylabel('Server Storage Cost (MB)', fontsize=42, fontweight='bold', labelpad=1, rotation=90)
 
 # 设置主图的x轴范围和刻度
-ax_main.set_xlim(0, 11000)
+ax_main.set_xlim(0, 10500)
 x_ticks = [0, 2000, 4000, 6000, 8000, 10000]
 ax_main.set_xticks(x_ticks)
 ax_main.set_xticklabels([f'{int(x/1000)}k' if x != 0 else '0' for x in x_ticks], fontsize=50)
@@ -142,4 +142,4 @@ frame.set_edgecolor('black')
 plt.subplots_adjust(left=0.12, right=0.97, top=0.98, bottom=0.12)
 
 # 保存文件
-plt.savefig("pic/storage/Wikipedia_storage_comparison.pdf", dpi=3600, format='pdf')
+plt.savefig("pic/server_storage/Wikipedia_storage_comparison.pdf", dpi=3600, format='pdf')

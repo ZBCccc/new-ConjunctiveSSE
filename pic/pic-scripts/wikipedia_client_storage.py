@@ -96,7 +96,7 @@ ax_main.set_xlabel('Keywords Number', fontsize=42, fontweight='bold', labelpad=1
 ax_main.set_ylabel('Client Storage Cost (KB)', fontsize=42, fontweight='bold', labelpad=1, rotation=90)
 
 # 设置主图的x轴范围和刻度
-ax_main.set_xlim(0, 11000)
+ax_main.set_xlim(0, 10500)
 x_ticks = [0, 2000, 4000, 6000, 8000, 10000]
 ax_main.set_xticks(x_ticks)
 ax_main.set_xticklabels([f'{int(x/1000)}k' if x != 0 else '0' for x in x_ticks], fontsize=50)
