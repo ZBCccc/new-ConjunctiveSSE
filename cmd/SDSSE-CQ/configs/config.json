@@ -1,7 +1,0 @@
-{
-    "db": "Enron_USENIX",
-    "phase": "cs",
-    "group": "Enron_USENIX_w1_generated.txt",
-    "del_rate": 0,
-    "mongo_uri": "mongodb://localhost:27017"
-}
