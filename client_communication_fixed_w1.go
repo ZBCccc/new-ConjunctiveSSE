@@ -11,7 +11,7 @@ import (
 func main() {
 	// Communication sizes per keyword-document pair in bytes
 	storageSizes := map[string]int{
-		"Nomos":   10 * (1 + 12) * 32,
+		"Nomos":   10 * (1 + 3) * 32,
 		"MC-ODXT": 10 * 1 * 32,
 		"VQNomos": 10*(1+3)*32 + 16,
 	}
@@ -75,12 +75,11 @@ func main() {
 			fmt.Fprintf(outFile, "KeywordCount,Storage(Bytes)\n")
 
 			bytesPerPair := storageSizes[scheme]
-			bitsPerPair := bytesPerPair * 8
 
 			// Calculate cumulative storage
 			for _, docCount := range docCounts {
 				// Calculate storage for this keyword's documents
-				storageForKeyword := bitsPerPair
+				storageForKeyword := bytesPerPair
 
 				// Write row
 				fmt.Fprintf(outFile, "%d,%d\n", docCount, storageForKeyword)

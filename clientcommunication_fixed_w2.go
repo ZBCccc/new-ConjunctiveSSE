@@ -11,9 +11,9 @@ import (
 func main() {
 	// Communication sizes per keyword-document pair in bytes
 	storageSizes := map[string]int{
-		"Nomos":   10*(1+12)*32,
-		"MC-ODXT": 10*1*32,
-		"VQNomos": 10*(1+3)*32+16,
+		"Nomos":   (1 + 3) * 32,
+		"MC-ODXT": 32,
+		"VQNomos": (1 + 3) * 32,
 	}
 
 	// Dataset files and their corresponding JSON files
@@ -38,12 +38,17 @@ func main() {
 			}
 
 			var docCounts []int
+			seenCounts := make(map[int]struct{})
 			scanner := bufio.NewScanner(file)
 			for scanner.Scan() {
 				line := scanner.Text()
 				matches := re.FindStringSubmatch(line)
 				if len(matches) == 3 {
 					count, _ := strconv.Atoi(matches[2])
+					if _, seen := seenCounts[count]; seen {
+						continue
+					}
+					seenCounts[count] = struct{}{}
 					docCounts = append(docCounts, count)
 				}
 			}
@@ -59,7 +64,7 @@ func main() {
 			if datasetName == "Wiki" {
 				outputName = "Wikipedia"
 			}
-			filename := fmt.Sprintf("pic/nomos_client_communication_data/%s_%s.csv", scheme, outputName)
+			filename := fmt.Sprintf("pic/nomos_client_communication_data_w2/%s_%s.csv", scheme, outputName)
 			outFile, err := os.Create(filename)
 			if err != nil {
 				fmt.Printf("Error creating %s: %v\n", filename, err)
@@ -70,15 +75,18 @@ func main() {
 			fmt.Fprintf(outFile, "KeywordCount,Storage(Bytes)\n")
 
 			bytesPerPair := storageSizes[scheme]
-			bitsPerPair := bytesPerPair * 8
 
 			// Calculate cumulative storage
-			for i, docCount := range docCounts {
+			for _, docCount := range docCounts {
 				// Calculate storage for this keyword's documents
-				storageForKeyword := docCount * bitsPerPair
+				storageForKeyword := bytesPerPair * docCount
+
+				if scheme == "VQNomos" {
+					storageForKeyword += 16
+				}
 
 				// Write row
-				fmt.Fprintf(outFile, "%d,%d\n", i+1, storageForKeyword)
+				fmt.Fprintf(outFile, "%d,%d\n", docCount, storageForKeyword)
 			}
 
 			outFile.Close()

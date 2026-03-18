@@ -5,7 +5,6 @@ import numpy as np
 import matplotlib as mpl
 import re
 from matplotlib import gridspec
-from matplotlib.ticker import LogLocator
 
 # 创建输出目录
 os.makedirs("pic/nomos_client_communication_w1", exist_ok=True)
@@ -41,9 +40,6 @@ DATASET_CONFIG = {
         "x_ticks": [0, 4000, 8000, 12000, 16000],
         "x_tick_labels": ["0", "4k", "8k", "12k", "16k"],
         "x_minor": 2000,
-        "ylim": (1, 40),
-        "y_ticks": [2, 5, 10, 20, 40],
-        "y_labels": ["2", "5", "10", "20", "40"],
         "legend_xlim": 16644,
         "sample_mode": "crime",
         "raw_count_file": "pic/raw_data/Crime_filecnt_sorted.json",
@@ -58,9 +54,6 @@ DATASET_CONFIG = {
         "x_ticks": [0, 5000, 10000, 15000, 20000, 25000],
         "x_tick_labels": ["0", "5k", "10k", "15k", "20k", "25k"],
         "x_minor": 2500,
-        "ylim": (1, 40),
-        "y_ticks": [2, 5, 10, 20, 40],
-        "y_labels": ["2", "5", "10", "20", "40"],
         "legend_xlim": 26946,
         "sample_mode": "enron",
         "raw_count_file": "pic/raw_data/Enron_filecnt_sorted.json",
@@ -75,9 +68,6 @@ DATASET_CONFIG = {
         "x_ticks": [0, 2000, 4000, 6000, 8000],
         "x_tick_labels": ["0", "2k", "4k", "6k", "8k"],
         "x_minor": 1000,
-        "ylim": (1, 40),
-        "y_ticks": [2, 5, 10, 20, 40],
-        "y_labels": ["2", "5", "10", "20", "40"],
         "legend_xlim": 9738,
         "sample_mode": "wikipedia",
         "raw_count_file": "pic/raw_data/Wiki_filecnt_sorted.json",
@@ -157,6 +147,9 @@ def plot_dataset(dataset_name, cfg):
     ax_legend.set_xlim(0, cfg["legend_xlim"])
 
     ax_main = plt.subplot(gs[1])
+    y_ticks = [0, 300, 600, 900, 1200, 1500]
+    y_labels = ["", "300", "600", "900", "1200", "1500"]
+    y_lim = (0, 1500)
 
     handles = []
     labels = []
@@ -168,8 +161,8 @@ def plot_dataset(dataset_name, cfg):
             df.columns = df.columns.str.strip()
 
             x_values = df["KeywordCount"]
-            # 原始单位是 Byte，这里只做 Byte -> KB，不做 bit 转换
-            y_values = df["Storage(Bytes)"] / 1024.0
+            # 直接使用 Byte 单位
+            y_values = df["Storage(Bytes)"]
 
             x_sampled, y_sampled = sample_points(x_values, y_values, cfg["sample_mode"])
 
@@ -194,16 +187,16 @@ def plot_dataset(dataset_name, cfg):
             print(f"处理 {dataset_name} - {scheme} 数据时出错: {e}")
 
     ax_main.set_xlabel(r"$|upd(w_{2})|$", fontsize=42, fontweight="bold", labelpad=1)
-    ax_main.set_ylabel("Communication Cost (KB)", fontsize=42, fontweight="bold", labelpad=1, rotation=90)
+    ax_main.set_ylabel("Communication Cost (Byte)", fontsize=42, fontweight="bold", labelpad=1, rotation=90)
 
     ax_main.set_xlim(0, cfg["xlim"])
     ax_main.set_xticks(cfg["x_ticks"])
     x_tick_labels = [str(int(x)) for x in cfg["x_ticks"]]
     ax_main.set_xticklabels(x_tick_labels, fontsize=50)
 
-    plt.yscale("log")
-    plt.yticks(cfg["y_ticks"], cfg["y_labels"], fontsize=50)
-    plt.ylim(cfg["ylim"][0], cfg["ylim"][1])
+    plt.yscale("linear")
+    plt.yticks(y_ticks, y_labels, fontsize=50)
+    plt.ylim(y_lim[0], y_lim[1])
 
     ax_main.tick_params(axis="both", which="both", direction="in")
     ax_main.tick_params(axis="x", which="major", bottom=True, top=True, length=8, width=3.5)
@@ -212,7 +205,7 @@ def plot_dataset(dataset_name, cfg):
     ax_main.tick_params(axis="y", which="minor", left=True, right=True, length=4, width=2)
 
     ax_main.xaxis.set_minor_locator(plt.MultipleLocator(cfg["x_minor"]))
-    ax_main.yaxis.set_minor_locator(LogLocator(base=10.0, subs="auto", numticks=100))
+    ax_main.yaxis.set_minor_locator(plt.MultipleLocator(150))
 
     leg = ax_legend.legend(
         handles,
