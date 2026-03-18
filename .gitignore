@@ -1,17 +1,24 @@
-/result/Update
-/.idea
-/.vscode
-/pic/result
-/DB
-/DB_gen
-/.venv
+# OS / editor noise
+.DS_Store
+.idea/
+.vscode/
+.venv/
 
-# Local config files — copy config.example.json to config.json and edit
-cmd/ODXT/configs/config.json
-cmd/HDXT/configs/config.json
-cmd/FDXT/configs/config.json
-cmd/SDSSE-CQ/configs/config.json
-
-# Claude Code files
+# Local AI tooling
 CLAUDE.md
 .claude/
+
+# Local plaintext databases and Mongo exports
+/DB/
+/DB_gen/
+
+# Generated benchmark and experiment outputs
+/result/
+/pic/**/*.csv
+/pic/**/*.pdf
+/pic/**/*.png
+/pic/**/*.svg
+/pic/raw_data/
+
+# Local config files — copy config.example.json to config.json and edit
+/cmd/*/configs/config.json

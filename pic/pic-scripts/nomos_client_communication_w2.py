@@ -170,7 +170,7 @@ def plot_dataset(dataset_name, cfg):
         except Exception as e:
             print(f"处理 {dataset_name} - {scheme} 数据时出错: {e}")
 
-    ax_main.set_xlabel(r"$|upd(w_{2})|$", fontsize=42, fontweight="bold", labelpad=1)
+    ax_main.set_xlabel(r"$|upd(w_{1})|$", fontsize=42, fontweight="bold", labelpad=1)
     ax_main.set_ylabel("Communication Cost (KB)", fontsize=42, fontweight="bold", labelpad=1, rotation=90)
 
     ax_main.set_xlim(0, cfg["xlim"])
